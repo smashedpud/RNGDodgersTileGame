@@ -1,0 +1,185 @@
+:root {
+  --gap: 10px; /* horizontal gap between squares */
+    --min-square: 40px;
+    --max-square: 100px;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background-color: #121212;
+  color: #000;
+}
+
+/* prevent horizontal scrollbar when grid resizes */
+body { overflow-x: hidden; }
+
+/* apply box-sizing universally to avoid inconsistent element sizing */
+*, *::before, *::after { box-sizing: inherit; }
+
+.app-shell {
+  min-height: 100vh;
+  width: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+  background-color: #121212;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.page-header {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #f4f4f4;
+}
+
+.title-accent {
+  color: #e03b3b;
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  position: relative;
+  overflow: visible;
+  /* columns set via inline style from React: --columns and --columnsMinusOne */
+  /* computed in JS: --computed-width, --computed-height, and --grid-width are set on the element */
+  width: var(--grid-width, 100%);
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  margin: 10px 0;
+  position: relative;
+  overflow: visible;
+  width: fit-content;
+  justify-content: flex-start;
+  gap: var(--gap);
+}
+
+.row.reverse {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
+.row.reverse:last-child {
+  justify-content: flex-end;
+}
+
+.square {
+  /* width and height can now be controlled independently via CSS vars */
+  width: var(--computed-width, var(--min-square));
+  flex: 0 0 var(--computed-width, var(--min-square));
+  height: var(--computed-height, var(--computed-width, var(--min-square)));
+  max-width: var(--max-square);
+  background-color: rgba(255,255,255,0.85);
+  color: #111;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  font-weight: bold;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+
+.square .meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  overflow: hidden;
+}
+
+.square.has-info {
+  outline: 2px dashed rgba(255,255,255,0.18);
+}
+
+.square.placeholder {
+  background-color: transparent;
+  box-shadow: none;
+  border: 0;
+  visibility: hidden;
+}
+
+.square-image {
+  width: 100%;
+  max-height: 55%;
+  height: auto;
+  border-radius: 4px;
+  object-fit: contain;
+  margin-bottom: 6px;
+}
+
+.square-title {
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.square-subtitle {
+  font-size: 10px;
+  opacity: 0.9;
+  color: red;
+}
+
+.square-number {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  font-size: 11px;
+  opacity: 0.85;
+  z-index: 3;
+}
+
+.arrow {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background-color: transparent;
+  z-index: 10;
+}
+
+.arrow.right {
+  background-color: grey;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  top: 50%;
+  left: calc(100% + (var(--gap) / 2) - 6px);
+  transform: translate(0, -50%);
+}
+
+.arrow.left {
+  background-color: grey;
+  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+  top: 50%;
+  left: calc(0% - (var(--gap) / 2) - 6px);
+  transform: translate(0, -50%);
+}
+
+.arrow.down {
+  background-color: grey;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + (var(--gap) / 2) - 6px);
+  transform: translate(-50%, 0);
+}
