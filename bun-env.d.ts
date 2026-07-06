@@ -8,6 +8,14 @@ declare module "*.svg" {
   export = path;
 }
 
+declare module "*.webp" {
+  /**
+   * A path to the WEBP file
+   */
+  const path: `${string}.webp`;
+  export = path;
+}
+
 declare module "*.css" {}
 
 declare module "*.module.css" {

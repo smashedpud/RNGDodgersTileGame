@@ -3,6 +3,7 @@ import "./index.css";
 import squaresJson from "./data/squares.json";
 import squaresBoard2Json from "./data/squares-board2.json";
 import leaderboardJson from "./data/leaderboard.json";
+import logoImage from "./icon.webp";
 
 type Props = {
   total?: number;
@@ -271,18 +272,15 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
   });
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      style={{ ["--logo-url" as any]: `url(${logoImage})` } as React.CSSProperties}
+    >
       <header className="page-header">
         <h1 className="page-title">
-          {isLeaderboardView ? (
-            <>
-              RNG Dodgers - <span className="title-accent">Leaderboard</span>
-            </>
-          ) : (
             <>
               RNG Dodgers - <span className="title-accent">Tile Game</span> - 2 Man
             </>
-          )}
         </h1>
         <div className="header-controls">
           <div className="board-menu">
