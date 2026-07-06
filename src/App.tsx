@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./index.css";
 import squaresJson from "./data/squares.json";
 import squaresBoard2Json from "./data/squares-board2.json";
+import leaderboardJson from "./data/leaderboard.json";
 
 type Props = {
   total?: number;
@@ -12,27 +13,63 @@ type Props = {
   squareHeight?: number;
 };
 
+type PageView = "board1" | "board2" | "leaderboard";
+
+type LeaderboardEntry = {
+  "team members": string[];
+  "tiles completed": number[];
+  "current tile": number;
+  color?: string;
+};
+
 export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareWidth = 120, squareHeight = 80 }: Props) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [effectiveColumns, setEffectiveColumns] = useState(columns);
   const [squareData, setSquareData] = useState<Record<number, any>>({});
-  const [activeBoard, setActiveBoard] = useState<"board1" | "board2">("board1");
+  const [activeBoard, setActiveBoard] = useState<PageView>("board1");
 
   const boardMap = {
     board1: squaresJson,
     board2: squaresBoard2Json,
   } as const;
 
-  const activeSquaresJson = boardMap[activeBoard];
+  const activeSquaresJson = boardMap[activeBoard as Exclude<PageView, "leaderboard">] ?? squaresJson;
+  const tileTitleLookup = useMemo(() => {
+    const lookup: Record<number, string> = {};
+    const register = (source: Record<string, unknown>) => {
+      Object.entries(source).forEach(([key, value]) => {
+        const tileNumber = Number(key);
+        if (Number.isNaN(tileNumber)) return;
+        const squareDataForTile = value as Record<string, unknown> | undefined;
+        const title = typeof squareDataForTile?.title === "string" && squareDataForTile.title.trim().length > 0
+          ? squareDataForTile.title
+          : `Tile ${tileNumber}`;
+        lookup[tileNumber] = title;
+      });
+    };
+
+    register(squaresJson as Record<string, unknown>);
+    register(squaresBoard2Json as Record<string, unknown>);
+    return lookup;
+  }, []);
+  const leaderboardTeams = [...(leaderboardJson as LeaderboardEntry[])].sort(
+    (a, b) => b["current tile"] - a["current tile"] || b["tiles completed"].length - a["tiles completed"].length,
+  );
+  const teamsByCurrentTile = useMemo(() => {
+    const groups = new Map<number, LeaderboardEntry[]>();
+    leaderboardTeams.forEach((team) => {
+      const existing = groups.get(team["current tile"]) ?? [];
+      existing.push(team);
+      groups.set(team["current tile"], existing);
+    });
+    return groups;
+  }, [leaderboardTeams]);
+  const isLeaderboardView = activeBoard === "leaderboard";
   const jsonSquareKeys = Object.keys(activeSquaresJson)
     .map((key) => Number(key))
     .filter((value) => !Number.isNaN(value))
     .sort((a, b) => a - b);
 
-  // compute the active board's numeric range so boards can start at any tile
-  const minKey = jsonSquareKeys.length > 0 ? jsonSquareKeys[0] : 1;
-  const maxKey = jsonSquareKeys.length > 0 ? jsonSquareKeys[jsonSquareKeys.length - 1] : total;
-  const totalSquares = maxKey - minKey + 1;
   const placeholderImage =
     'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22280%22%20height%3D%22280%22%20viewBox%3D%220%200%20280%20280%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Crect%20width%3D%22280%22%20height%3D%22280%22%20fill%3D%22%234a764a%22/%3E%3Ctext%20x%3D%22140%22%20y%3D%22150%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2220%22%20fill%3D%22%23fff%22%3EImage%3C/text%3E%3C/svg%3E';
 
@@ -148,13 +185,47 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
     }
   }, [activeBoard, activeSquaresJson]);
 
-  const rows = Math.ceil(totalSquares / effectiveColumns);
+  const boardCells = [
+    ...(activeBoard === "board1"
+      ? [{
+          kind: "special" as const,
+          id: "start",
+          title: (activeSquaresJson as Record<string, any>).start?.title || "Start",
+          subtitle: (activeSquaresJson as Record<string, any>).start?.subtitle,
+        }]
+      : []),
+    ...jsonSquareKeys.map((value) => ({
+      kind: "number" as const,
+      value,
+    })),
+    ...(activeBoard === "board2"
+      ? [{
+          kind: "special" as const,
+          id: "finish",
+          title: (activeSquaresJson as Record<string, any>).finish?.title || "Finish",
+          subtitle: (activeSquaresJson as Record<string, any>).finish?.subtitle,
+        }]
+      : []),
+  ];
+  const rows = Math.ceil(boardCells.length / effectiveColumns);
+
+  const getCompletedTileTitles = (tiles: number[]) => {
+    if (tiles.length === 0) {
+      return "No tiles completed yet";
+    }
+
+    return tiles
+      .map((tile) => {
+        const title = tileTitleLookup[tile];
+        return title ? `${tile}: ${title}` : `Tile ${tile}`;
+      })
+      .join("\n");
+  };
 
   const gridRows = Array.from({ length: rows }).map((_, rowIndex) => {
-    const rowStart = minKey + rowIndex * effectiveColumns;
-    const rowEnd = Math.min(maxKey, rowStart + effectiveColumns - 1);
-    const values: number[] = [];
-    for (let i = rowStart; i <= rowEnd; i++) values.push(i);
+    const rowStart = rowIndex * effectiveColumns;
+    const rowEnd = Math.min(boardCells.length - 1, rowStart + effectiveColumns - 1);
+    const values = boardCells.slice(rowStart, rowEnd + 1);
     const placeholderCount = Math.max(0, effectiveColumns - values.length);
     return { values, placeholderCount, rowIndex };
   });
@@ -163,7 +234,15 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
     <div className="app-shell">
       <header className="page-header">
         <h1 className="page-title">
-          RNG Dodgers - <span className="title-accent">Tile Game</span> - 2 Man
+          {isLeaderboardView ? (
+            <>
+              RNG Dodgers - <span className="title-accent">Leaderboard</span>
+            </>
+          ) : (
+            <>
+              RNG Dodgers - <span className="title-accent">Tile Game</span> - 2 Man
+            </>
+          )}
         </h1>
         <div className="board-menu">
           <button
@@ -180,79 +259,161 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
           >
             Board 2
           </button>
+          <button
+            type="button"
+            className={activeBoard === "leaderboard" ? "board-button active" : "board-button"}
+            onClick={() => setActiveBoard("leaderboard")}
+          >
+            Leaderboard
+          </button>
         </div>
       </header>
-      <div
-        ref={gridRef}
-        className="grid"
-        style={
-          {
-            ["--columns" as any]: String(effectiveColumns),
-            ["--columnsMinusOne" as any]: String(Math.max(0, effectiveColumns - 1)),
-            ["--computed-height" as any]: squareHeight != null ? `${squareHeight}px` : undefined,
-          } as React.CSSProperties
-        }
-      >
-      {gridRows.map(({ values, placeholderCount, rowIndex }) => (
-        <div
-          className={`row ${rowIndex % 2 === 1 ? "reverse" : ""}`}
-          key={rowIndex}
-        >
-          {values.map((val, idx) => {
-            const info = squareData[val];
-            const resolveImageUrl = (src?: string) => {
-              if (!src) return undefined;
-              if (src.includes("oldschool.runescape.wiki")) {
-                return `https://images.weserv.nl/?url=${encodeURIComponent(src)}&output=png`;
-              }
-              return src;
-            };
 
-            return (
-              <div key={val} className={`square ${info ? 'has-info' : ''}`}>
-                {info ? (
-                  <div className="meta">
-                    {info.title && <div className="square-title">{info.title}</div>}
-                    {info.subtitle && <div className="square-subtitle">{info.subtitle}</div>}
-                    {info.image && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={resolveImageUrl(info.image)}
-                        alt={info.title || ''}
-                        className="square-image"
-                        loading="eager"
-                        decoding="async"
-                        crossOrigin="anonymous"
-                        onError={(event) => {
-                          const target = event.currentTarget;
-                          if (!target.src.includes('images.weserv.nl')) {
-                            target.src = resolveImageUrl(info.image);
-                          } else if (target.src !== placeholderImage) {
-                            target.src = placeholderImage;
-                          }
-                        }}
+      {isLeaderboardView ? (
+        <div className="leaderboard-card">
+          <table className="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>Current Tile</th>
+                <th>Total Tiles Completed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboardTeams.map((team, index) => (
+                <tr key={`${team["team members"].join("-")}-${index}`}>
+                  <td>
+                    <span className="leaderboard-team-pill">
+                      <span
+                        className="leaderboard-team-color"
+                        style={{ backgroundColor: team.color || "#6b7280" }}
                       />
+                      {team["team members"].join(", ")}
+                    </span>
+                  </td>
+                  <td>{team["current tile"]}</td>
+                  <td className="leaderboard-tile-count" title={getCompletedTileTitles(team["tiles completed"])}>
+                    {team["tiles completed"].length}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div
+          ref={gridRef}
+          className="grid"
+          style={
+            {
+              ["--columns" as any]: String(effectiveColumns),
+              ["--columnsMinusOne" as any]: String(Math.max(0, effectiveColumns - 1)),
+              ["--computed-height" as any]: squareHeight != null ? `${squareHeight}px` : undefined,
+            } as React.CSSProperties
+          }
+        >
+          {gridRows.map(({ values, placeholderCount, rowIndex }) => (
+            <div
+              className={`row ${rowIndex % 2 === 1 ? "reverse" : ""}`}
+              key={rowIndex}
+            >
+              {values.map((cell, idx) => {
+                const resolveImageUrl = (src?: string) => {
+                  if (!src) return undefined;
+                  if (src.includes("oldschool.runescape.wiki")) {
+                    return `https://images.weserv.nl/?url=${encodeURIComponent(src)}&output=png`;
+                  }
+                  return src;
+                };
+
+                if (cell.kind === "special") {
+                  const isStart = cell.id === "start";
+                  const isFinish = cell.id === "finish";
+
+                  return (
+                    <div
+                      key={cell.id}
+                      className={`square special-square ${isStart ? "start-square" : ""} ${isFinish ? "finish-square" : ""}`}
+                    >
+                      <div className="meta">
+                        <div className="square-title">{cell.title}</div>
+                        {cell.subtitle && <div className="square-subtitle">{cell.subtitle}</div>}
+                      </div>
+
+                      {idx < values.length - 1 && (
+                        <div className={`arrow ${rowIndex % 2 === 0 ? "right" : "left"}`} />
+                      )}
+                      {idx === values.length - 1 && rowIndex < rows - 1 && (
+                        <div className="arrow down" />
+                      )}
+                    </div>
+                  );
+                }
+
+                const val = cell.value;
+                const info = squareData[val];
+                const teamsOnThisTile = teamsByCurrentTile.get(val) ?? [];
+
+                return (
+                  <div key={val} className={`square ${info ? "has-info" : ""}`}>
+                    {info ? (
+                      <div className="meta">
+                        {info.title && <div className="square-title">{info.title}</div>}
+                        {info.subtitle && <div className="square-subtitle">{info.subtitle}</div>}
+                        {info.image && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={resolveImageUrl(info.image)}
+                            alt={info.title || ""}
+                            className="square-image"
+                            loading="eager"
+                            decoding="async"
+                            crossOrigin="anonymous"
+                            onError={(event) => {
+                              const target = event.currentTarget;
+                              const fallbackImage = resolveImageUrl(info.image) ?? placeholderImage;
+                              if (!target.src.includes("images.weserv.nl")) {
+                                target.src = fallbackImage;
+                              } else if (target.src !== placeholderImage) {
+                                target.src = placeholderImage;
+                              }
+                            }}
+                          />
+                        )}
+                      </div>
+                    ) : null}
+
+                    <div className="square-number">[{val}]</div>
+
+                    {teamsOnThisTile.length > 0 && (
+                      <div className="tile-team-markers" aria-label={`Teams on tile ${val}`}>
+                        {teamsOnThisTile.map((team, markerIndex) => (
+                          <span
+                            key={`${team["team members"].join("-")}-${markerIndex}`}
+                            className="tile-team-marker"
+                            style={{ backgroundColor: team.color || "#ffffff" }}
+                            title={team["team members"].join(", ")}
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {idx < values.length - 1 && (
+                      <div className={`arrow ${rowIndex % 2 === 0 ? "right" : "left"}`} />
+                    )}
+                    {idx === values.length - 1 && rowIndex < rows - 1 && (
+                      <div className="arrow down" />
                     )}
                   </div>
-                ) : null}
-
-                <div className="square-number">[{val}]</div>
-
-                {idx < values.length - 1 && (
-                  <div className={`arrow ${rowIndex % 2 === 0 ? "right" : "left"}`} />
-                )}
-                {idx === values.length - 1 && rowIndex < rows - 1 && (
-                  <div className="arrow down" />
-                )}
-              </div>
-            );
-          })}
-          {Array.from({ length: placeholderCount }).map((_, placeholderIdx) => (
-            <div key={`placeholder-${rowIndex}-${placeholderIdx}`} className="square placeholder" />
+                );
+              })}
+              {Array.from({ length: placeholderCount }).map((_, placeholderIdx) => (
+                <div key={`placeholder-${rowIndex}-${placeholderIdx}`} className="square placeholder" />
+              ))}
+            </div>
           ))}
         </div>
-      ))}
-      </div>
+      )}
     </div>
   );
 }

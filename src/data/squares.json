@@ -1,6 +1,9 @@
 {
+  "start": {
+    "title": "Start"
+  },
   "1": {
-    "title": "Start: Dragon Pickaxe",
+    "title": "Dragon Pickaxe",
     "image": "https://oldschool.runescape.wiki/images/Dragon_pickaxe_detail.png"
   },
   "2": {

@@ -178,6 +178,24 @@ body { overflow-x: hidden; }
   z-index: 3;
 }
 
+.tile-team-markers {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  z-index: 4;
+}
+
+.tile-team-marker {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.95);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.25);
+  cursor: help;
+}
+
 .arrow {
   position: absolute;
   width: 12px;
@@ -209,4 +227,98 @@ body { overflow-x: hidden; }
   left: 50%;
   top: calc(100% + (var(--gap) / 2) - 6px);
   transform: translate(-50%, 0);
+}
+
+.leaderboard-card {
+  width: min(760px, 100%);
+  background: rgba(255,255,255,0.95);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.25);
+}
+
+.leaderboard-copy {
+  margin: 0 0 16px;
+  color: #444;
+}
+
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.leaderboard-table th,
+.leaderboard-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.leaderboard-table th {
+  background: #f3f4f6;
+  color: #111827;
+  font-weight: 700;
+}
+
+.leaderboard-table tr:last-child td {
+  border-bottom: none;
+}
+
+.leaderboard-table tbody tr:nth-child(odd) {
+  background: #fafafa;
+}
+
+.leaderboard-tile-count {
+  cursor: help;
+}
+
+.leaderboard-team-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.leaderboard-team-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.special-row {
+  margin: 10px 0 0;
+}
+
+.special-square {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  border: 2px solid rgba(255,255,255,0.4);
+}
+
+.special-square.start-square {
+  background: linear-gradient(135deg, #22c55e, #15803d);
+}
+
+.special-square.finish-square {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+}
+
+.special-square .meta {
+  justify-content: center;
+  align-items: center;
+}
+
+.special-square .square-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.special-square .square-subtitle {
+  color: rgba(255,255,255,0.9);
+  text-align: center;
 }

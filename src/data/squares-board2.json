@@ -1,4 +1,7 @@
 {
+  "finish": {
+    "title": "Finish"
+  },
   "24": {
     "title": "KQ Queen Head",
     "image": "https://oldschool.runescape.wiki/images/Kq_head.png"
@@ -90,7 +93,7 @@
     "image": "https://oldschool.runescape.wiki/images/Ancient_relic_detail.png"
   },
   "46": {
-    "title": "Finish: Purple Raid",
+    "title": "Purple Raid",
     "image": "https://oldschool.runescape.wiki/images/Tumeken%27s_shadow.png"
   }
 }
