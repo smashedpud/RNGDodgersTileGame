@@ -27,8 +27,16 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
   const [effectiveColumns, setEffectiveColumns] = useState(columns);
   const [squareData, setSquareData] = useState<Record<number, any>>({});
   const [activeBoard, setActiveBoard] = useState<PageView>("board1");
+  const [gridScale, setGridScale] = useState(1);
   const [hoveredInfo, setHoveredInfo] = useState<{ kind: "team" | "tiles"; text: string; color?: string } | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
+
+  const MIN_GRID_SCALE = 1.0;
+  const MAX_GRID_SCALE = 2.0;
+  const GRID_SCALE_STEP = 0.1;
+  const scaledMinSquare = Math.max(24, Math.round(minSquare * gridScale));
+  const scaledSquareWidth = squareWidth != null ? Math.max(24, Math.round(squareWidth * gridScale)) : undefined;
+  const scaledSquareHeight = squareHeight != null ? Math.max(24, Math.round(squareHeight * gridScale)) : undefined;
 
   const showPopup = (
     event: React.MouseEvent<HTMLElement> | React.TouchEvent<HTMLElement>,
@@ -88,6 +96,9 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
     return groups;
   }, [leaderboardTeams]);
   const isLeaderboardView = activeBoard === "leaderboard";
+  const canDecreaseGrid = gridScale > MIN_GRID_SCALE;
+  const canIncreaseGrid = gridScale < MAX_GRID_SCALE;
+  const gridScalePercent = Math.round(gridScale * 100);
   const jsonSquareKeys = Object.keys(activeSquaresJson)
     .map((key) => Number(key))
     .filter((value) => !Number.isNaN(value))
@@ -107,7 +118,7 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
     const compute = (measuredWidth: number) => {
       const elStyle = getComputedStyle(el);
       const gapPx = parseFloat(elStyle.getPropertyValue("--gap")) || gap;
-      const minPx = minSquare;
+      const minPx = scaledMinSquare;
 
       // Prefer the actual measured container width, but cap it to the viewport
       // to allow the grid to shrink when the window becomes smaller. If the
@@ -127,8 +138,8 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
       let rawWidth = availableWidth; // fallback width
       let computedWidth: number;
 
-      if (squareWidth != null) {
-        computedWidth = Math.max(minPx, squareWidth);
+      if (scaledSquareWidth != null) {
+        computedWidth = Math.max(minPx, scaledSquareWidth);
         let fit = 1;
         for (let c = columns; c >= 1; c--) {
           if (c * computedWidth + gapPx * (c - 1) <= availableWidth) {
@@ -158,7 +169,7 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
         computedWidth = Math.max(minPx, Math.min(rawSize, maxPx));
       }
 
-      const computedHeight = squareHeight != null ? squareHeight : computedWidth;
+      const computedHeight = scaledSquareHeight != null ? scaledSquareHeight : computedWidth;
 
       // set CSS vars on grid element so layout uses exact pixels
       el.style.setProperty("--computed-width", `${computedWidth}px`);
@@ -190,7 +201,7 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
       ro.disconnect();
       window.removeEventListener("resize", onWindowResize);
     };
-  }, [columns, gap, minSquare]);
+  }, [columns, gap, scaledMinSquare, scaledSquareHeight, scaledSquareWidth]);
 
   // load square details from imported JSON (bundled at build time)
   useEffect(() => {
@@ -273,28 +284,53 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
             </>
           )}
         </h1>
-        <div className="board-menu">
-          <button
-            type="button"
-            className={activeBoard === "board1" ? "board-button active" : "board-button"}
-            onClick={() => setActiveBoard("board1")}
-          >
-            Board 1
-          </button>
-          <button
-            type="button"
-            className={activeBoard === "board2" ? "board-button active" : "board-button"}
-            onClick={() => setActiveBoard("board2")}
-          >
-            Board 2
-          </button>
-          <button
-            type="button"
-            className={activeBoard === "leaderboard" ? "board-button active" : "board-button"}
-            onClick={() => setActiveBoard("leaderboard")}
-          >
-            Leaderboard
-          </button>
+        <div className="header-controls">
+          <div className="board-menu">
+            <button
+              type="button"
+              className={activeBoard === "board1" ? "board-button active" : "board-button"}
+              onClick={() => setActiveBoard("board1")}
+            >
+              Board 1
+            </button>
+            <button
+              type="button"
+              className={activeBoard === "board2" ? "board-button active" : "board-button"}
+              onClick={() => setActiveBoard("board2")}
+            >
+              Board 2
+            </button>
+            <button
+              type="button"
+              className={activeBoard === "leaderboard" ? "board-button active" : "board-button"}
+              onClick={() => setActiveBoard("leaderboard")}
+            >
+              Leaderboard
+            </button>
+          </div>
+          {!isLeaderboardView ? (
+            <div className="grid-size-controls" aria-label="Grid size controls">
+              <button
+                type="button"
+                className="size-button"
+                onClick={() => setGridScale((current) => Math.max(MIN_GRID_SCALE, Number((current - GRID_SCALE_STEP).toFixed(2))))}
+                disabled={!canDecreaseGrid}
+                aria-label="Decrease grid size"
+              >
+                -
+              </button>
+              <span className="size-value">{gridScalePercent}%</span>
+              <button
+                type="button"
+                className="size-button"
+                onClick={() => setGridScale((current) => Math.min(MAX_GRID_SCALE, Number((current + GRID_SCALE_STEP).toFixed(2))))}
+                disabled={!canIncreaseGrid}
+                aria-label="Increase grid size"
+              >
+                +
+              </button>
+            </div>
+          ) : null}
         </div>
       </header>
 
