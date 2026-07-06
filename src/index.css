@@ -36,6 +36,33 @@ body { overflow-x: hidden; }
   text-align: center;
 }
 
+.board-menu {
+  display: inline-flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.board-button {
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+  color: #f4f4f4;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.board-button:hover {
+  background: rgba(255,255,255,0.16);
+}
+
+.board-button.active {
+  background: rgba(255,255,255,0.95);
+  color: #121212;
+  border-color: rgba(255,255,255,0.9);
+}
+
 .page-title {
   margin: 0;
   font-size: 2rem;

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./index.css";
 import squaresJson from "./data/squares.json";
+import squaresBoard2Json from "./data/squares-board2.json";
 
 type Props = {
   total?: number;
@@ -15,10 +16,23 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [effectiveColumns, setEffectiveColumns] = useState(columns);
   const [squareData, setSquareData] = useState<Record<number, any>>({});
-  const jsonSquareKeys = Object.keys(squaresJson)
+  const [activeBoard, setActiveBoard] = useState<"board1" | "board2">("board1");
+
+  const boardMap = {
+    board1: squaresJson,
+    board2: squaresBoard2Json,
+  } as const;
+
+  const activeSquaresJson = boardMap[activeBoard];
+  const jsonSquareKeys = Object.keys(activeSquaresJson)
     .map((key) => Number(key))
-    .filter((value) => !Number.isNaN(value));
-  const totalSquares = jsonSquareKeys.length > 0 ? Math.max(...jsonSquareKeys) : total;
+    .filter((value) => !Number.isNaN(value))
+    .sort((a, b) => a - b);
+
+  // compute the active board's numeric range so boards can start at any tile
+  const minKey = jsonSquareKeys.length > 0 ? jsonSquareKeys[0] : 1;
+  const maxKey = jsonSquareKeys.length > 0 ? jsonSquareKeys[jsonSquareKeys.length - 1] : total;
+  const totalSquares = maxKey - minKey + 1;
   const placeholderImage =
     'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22280%22%20height%3D%22280%22%20viewBox%3D%220%200%20280%20280%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Crect%20width%3D%22280%22%20height%3D%22280%22%20fill%3D%22%234a764a%22/%3E%3Ctext%20x%3D%22140%22%20y%3D%22150%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2220%22%20fill%3D%22%23fff%22%3EImage%3C/text%3E%3C/svg%3E';
 
@@ -123,24 +137,24 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
   useEffect(() => {
     try {
       const map: Record<number, any> = {};
-      Object.keys(squaresJson).forEach((k) => {
+      Object.keys(activeSquaresJson).forEach((k) => {
         const n = Number(k);
-        if (!Number.isNaN(n)) map[n] = (squaresJson as any)[k];
+        if (!Number.isNaN(n)) map[n] = (activeSquaresJson as any)[k];
       });
       setSquareData(map);
-      console.log('loaded square data (import)', map);
+      console.log(`loaded square data for ${activeBoard}`, map);
     } catch (err) {
       console.warn('failed reading imported square data', err);
     }
-  }, []);
+  }, [activeBoard, activeSquaresJson]);
 
   const rows = Math.ceil(totalSquares / effectiveColumns);
 
   const gridRows = Array.from({ length: rows }).map((_, rowIndex) => {
-    const start = rowIndex * effectiveColumns + 1;
-    const end = Math.min(totalSquares, (rowIndex + 1) * effectiveColumns);
+    const rowStart = minKey + rowIndex * effectiveColumns;
+    const rowEnd = Math.min(maxKey, rowStart + effectiveColumns - 1);
     const values: number[] = [];
-    for (let i = start; i <= end; i++) values.push(i);
+    for (let i = rowStart; i <= rowEnd; i++) values.push(i);
     const placeholderCount = Math.max(0, effectiveColumns - values.length);
     return { values, placeholderCount, rowIndex };
   });
@@ -151,6 +165,22 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
         <h1 className="page-title">
           RNG Dodgers - <span className="title-accent">Tile Game</span> - 2 Man
         </h1>
+        <div className="board-menu">
+          <button
+            type="button"
+            className={activeBoard === "board1" ? "board-button active" : "board-button"}
+            onClick={() => setActiveBoard("board1")}
+          >
+            Board 1
+          </button>
+          <button
+            type="button"
+            className={activeBoard === "board2" ? "board-button active" : "board-button"}
+            onClick={() => setActiveBoard("board2")}
+          >
+            Board 2
+          </button>
+        </div>
       </header>
       <div
         ref={gridRef}
