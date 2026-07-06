@@ -271,14 +271,46 @@ body { overflow-x: hidden; }
 }
 
 .leaderboard-tile-count {
-  cursor: help;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+}
+
+.leaderboard-popup {
+  position: fixed;
+  z-index: 50;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-left: 4px solid transparent;
+  border-radius: 8px;
+  background: rgba(17, 24, 39, 0.95);
+  color: #f9fafb;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  white-space: pre-line;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+.leaderboard-popup.team {
+  border-left: 4px solid #38bdf8;
+}
+
+.leaderboard-popup.tiles {
+  border-left: 4px solid #fb923c;
 }
 
 .leaderboard-team-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-weight: 600;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
 }
 
 .leaderboard-team-color {

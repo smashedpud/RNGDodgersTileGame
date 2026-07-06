@@ -27,6 +27,29 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
   const [effectiveColumns, setEffectiveColumns] = useState(columns);
   const [squareData, setSquareData] = useState<Record<number, any>>({});
   const [activeBoard, setActiveBoard] = useState<PageView>("board1");
+  const [hoveredInfo, setHoveredInfo] = useState<{ kind: "team" | "tiles"; text: string; color?: string } | null>(null);
+  const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
+
+  const showPopup = (
+    event: React.MouseEvent<HTMLElement> | React.TouchEvent<HTMLElement>,
+    kind: "team" | "tiles",
+    text: string,
+    color?: string,
+  ) => {
+    const sourcePoint = "touches" in event && event.touches[0]
+      ? event.touches[0]
+      : event;
+    const clientX = "clientX" in sourcePoint ? sourcePoint.clientX : 0;
+    const clientY = "clientY" in sourcePoint ? sourcePoint.clientY : 0;
+
+    setHoveredInfo({ kind, text, color });
+    setHoverPosition({ x: clientX, y: clientY });
+  };
+
+  const clearPopup = () => {
+    setHoveredInfo(null);
+    setHoverPosition(null);
+  };
 
   const boardMap = {
     board1: squaresJson,
@@ -78,7 +101,6 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
     if (!el) {
       el = document.querySelector('.grid') as HTMLDivElement | null;
       if (!el) {
-        console.log('grid element not found yet');
         return;
       }
     }
@@ -179,9 +201,7 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
         if (!Number.isNaN(n)) map[n] = (activeSquaresJson as any)[k];
       });
       setSquareData(map);
-      console.log(`loaded square data for ${activeBoard}`, map);
     } catch (err) {
-      console.warn('failed reading imported square data', err);
     }
   }, [activeBoard, activeSquaresJson]);
 
@@ -221,6 +241,15 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
       })
       .join("\n");
   };
+
+  useEffect(() => {
+    if (!hoveredInfo) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setHoveredInfo(null), 1800);
+    return () => window.clearTimeout(timeoutId);
+  }, [hoveredInfo]);
 
   const gridRows = Array.from({ length: rows }).map((_, rowIndex) => {
     const rowStart = rowIndex * effectiveColumns;
@@ -269,6 +298,19 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
         </div>
       </header>
 
+      {hoveredInfo && hoverPosition ? (
+        <div
+          className={`leaderboard-popup ${hoveredInfo.kind === "team" ? "team" : "tiles"}`}
+          style={{
+            left: hoverPosition.x + 12,
+            top: hoverPosition.y + 12,
+            borderLeftColor: hoveredInfo.color || (hoveredInfo.kind === "team" ? "#38bdf8" : "#fb923c"),
+          }}
+        >
+          {hoveredInfo.text}
+        </div>
+      ) : null}
+
       {isLeaderboardView ? (
         <div className="leaderboard-card">
           <table className="leaderboard-table">
@@ -282,18 +324,25 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
             <tbody>
               {leaderboardTeams.map((team, index) => (
                 <tr key={`${team["team members"].join("-")}-${index}`}>
-                  <td>
-                    <span className="leaderboard-team-pill">
+                  <td className="leaderboard-team-pill">
                       <span
                         className="leaderboard-team-color"
                         style={{ backgroundColor: team.color || "#6b7280" }}
                       />
                       {team["team members"].join(", ")}
-                    </span>
                   </td>
                   <td>{team["current tile"]}</td>
-                  <td className="leaderboard-tile-count" title={getCompletedTileTitles(team["tiles completed"])}>
-                    {team["tiles completed"].length}
+                  <td>
+                    <button
+                      type="button"
+                      className="leaderboard-tile-count"
+                      onMouseEnter={(event) => showPopup(event, "tiles", getCompletedTileTitles(team["tiles completed"]), team.color)}
+                      onMouseMove={(event) => setHoverPosition({ x: event.clientX, y: event.clientY })}
+                      onMouseLeave={clearPopup}
+                      onClick={(event) => showPopup(event, "tiles", getCompletedTileTitles(team["tiles completed"]), team.color)}
+                    >
+                      {team["tiles completed"].length}
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -392,7 +441,10 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
                             key={`${team["team members"].join("-")}-${markerIndex}`}
                             className="tile-team-marker"
                             style={{ backgroundColor: team.color || "#ffffff" }}
-                            title={team["team members"].join(", ")}
+                            onMouseEnter={(event) => showPopup(event, "team", team["team members"].join(", "), team.color)}
+                            onMouseMove={(event) => setHoverPosition({ x: event.clientX, y: event.clientY })}
+                            onMouseLeave={clearPopup}
+                            onClick={(event) => showPopup(event, "team", team["team members"].join(", "), team.color)}
                           />
                         ))}
                       </div>
