@@ -1,7 +1,7 @@
 :root {
   --gap: 10px; /* horizontal gap between squares */
     --min-square: 40px;
-    --max-square: 100px;
+    --max-square: 200px;
 }
 
 body {
