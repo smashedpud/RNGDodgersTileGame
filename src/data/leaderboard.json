@@ -1,50 +1,42 @@
 [
-{
+  {
     "team members": ["Jihe", "Edgels"],
-    "tiles completed": [4, 8, 10, 15, 20],
-    "current tile": 23,
+    "rolls": [4, 4, 2, 3, 5, 3],
     "color": "#8b5cf6"
   },
   {
     "team members": ["Swift", "Slayer"],
-    "tiles completed": [1, 4, 9],
-    "current tile": 15,
+    "rolls": [1, 1, 5, 4],
     "color": "#09a493"
   },
   {
     "team members": ["Luke", "Ben"],
-    "tiles completed": [4],
-    "current tile": 5,
+    "rolls": [2, 1, 4, 4],
     "color": "#ec2020"
   },
   {
     "team members": ["Llew", "IScex"],
-    "tiles completed": [5, 10, 11, 12, 14, 16],
-    "current tile": 21,
+    "rolls": [5, 5, 1, 1, 2, 3, 2, 5, 3],
     "color": "#f97316"
   },
   {
     "team members": ["Saudi Mark", "Gadgie"],
-    "tiles completed": [1, 3, 7, 12],
-    "current tile": 15,
+    "rolls": [1, 2, 4, 5, 5, 1],
     "color": "#2555f8"
   },
   {
     "team members": ["Olmanswd", "BIG DOG JG"],
-    "tiles completed": [],
-    "current tile": 5,
+    "rolls": [5],
     "color": "#ec4899"
   },
   {
     "team members": ["Smashed", "Elliott"],
-    "tiles completed": [4],
-    "current tile": 4,
+    "rolls": [4, 2, 1, 4, 5],
     "color": "#eab308"
   },
   {
     "team members": ["Segh", "Knocker"],
-    "tiles completed": [5, 8, 15, 20],
-    "current tile": 23,
+    "rolls": [5, 3, 5, 4, 2, 4, 2, 2, 5, 3],
     "color": "#06b6d4"
   }
 ]

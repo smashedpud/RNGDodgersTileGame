@@ -1,6 +1,6 @@
 {
-  "finish": {
-    "title": "Finish"
+  "start": {
+    "title": "Start"
   },
   "24": {
     "title": "KQ Queen Head",
@@ -17,6 +17,10 @@
   },
   "27": {
     "title": "Move Forward 2 Spaces",
+    "action": {
+      "kind": "move-relative",
+      "value": 2
+    },
     "image": "https://oldschool.runescape.wiki/images/Agility_shortcut_jump.png"
   },
   "28": {
@@ -50,10 +54,17 @@
   },
   "35": {
     "title": "Roll Again",
+    "action": {
+      "kind": "reroll"
+    },
     "image": "https://oldschool.runescape.wiki/images/Dice_%286%29.png"
   },
   "36": {
     "title": "Move Back 2 Spaces",
+    "action": {
+      "kind": "move-relative",
+      "value": -2
+    },
     "image": "https://oldschool.runescape.wiki/images/Agility_shortcut_contortion.png"
   },
   "37": {
@@ -70,6 +81,9 @@
   },
   "40": {
     "title": "Roll Again",
+    "action": {
+      "kind": "reroll"
+    },
     "image": "https://oldschool.runescape.wiki/images/Dice_%286%29.png"
   },
   "41": {
@@ -78,6 +92,10 @@
   },
   "42": {
     "title": "Move Back To Tile 33",
+    "action": {
+      "kind": "move-absolute",
+      "value": 33
+    },
     "image": "https://oldschool.runescape.wiki/images/Retribution_overhead.png"
   },
   "43": {
@@ -95,5 +113,8 @@
   "46": {
     "title": "Purple Raid",
     "image": "https://oldschool.runescape.wiki/images/Tumeken%27s_shadow.png"
+  },
+  "finish": {
+    "title": "Finish"
   }
 }

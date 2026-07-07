@@ -8,6 +8,10 @@
   },
   "2": {
     "title": "Moved Forward 2 Spaces",
+    "action": {
+      "kind": "move-relative",
+      "value": 2
+    },
     "image": "https://oldschool.runescape.wiki/images/Agility_shortcut_jump.png"
   },
   "3": {
@@ -25,6 +29,10 @@
   },
   "6": {
     "title": "Move Back 2 Spaces",
+    "action": {
+      "kind": "move-relative",
+      "value": -2
+    },
     "image": "https://oldschool.runescape.wiki/images/Agility_shortcut_contortion.png"
   },
   "7": {
@@ -55,6 +63,10 @@
   },
   "13": {
     "title": "Move Forward 2 Spaces",
+    "action": {
+      "kind": "move-relative",
+      "value": 2
+    },
     "image": "https://oldschool.runescape.wiki/images/Agility_shortcut_jump.png"
   },
   "14": {
@@ -71,6 +83,9 @@
   },
   "17": {
     "title": "Roll Again",
+    "action": {
+      "kind": "reroll"
+    },
     "image": "https://oldschool.runescape.wiki/images/Dice_%286%29.png"
   },
   "18": {
@@ -79,6 +94,10 @@
   },
   "19": {
     "title": "Move Back 2 Spaces",
+    "action": {
+      "kind": "move-relative",
+      "value": -2
+    },
     "image": "https://oldschool.runescape.wiki/images/Agility_shortcut_contortion.png"
   },
   "20": {
@@ -96,5 +115,8 @@
   "23": {
     "title": "Zealot Piece",
     "image": "https://oldschool.runescape.wiki/images/Zealot%27s_boots.png"
+  },
+  "finish": {
+    "title": "Finish"
   }
 }
