@@ -17,3 +17,11 @@ export function canEditTeamRolls(permission: UserPermission | undefined) {
 export function canManageUsers(permission: UserPermission | undefined) {
   return permission === "admin";
 }
+
+export function canManageTiles(permission: UserPermission | undefined) {
+  return permission === "admin";
+}
+
+export function canManageBoards(permission: UserPermission | undefined) {
+  return permission === "admin";
+}

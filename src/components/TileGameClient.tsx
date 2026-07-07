@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { DEFAULT_GAME_DATA } from "@/lib/defaultData";
 import type { BoardId, GameUser, RawLeaderboardEntry, SquareData } from "@/lib/types";
@@ -878,6 +879,11 @@ export function TileGameClient({
             >
               Leaderboard
             </button>
+            {isAdmin ? (
+              <Link className="board-button" href={`/admin/tiles?board=${activeBoard === "board2" ? "board2" : "board1"}`}>
+                Edit Tiles & Boards
+              </Link>
+            ) : null}
           </div>
           {!isLeaderboardView ? (
             <div className="grid-size-controls" aria-label="Grid size controls">
