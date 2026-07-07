@@ -498,11 +498,30 @@ export function TileGameClient({
       return;
     }
 
-    const normalizedUsers = userDrafts.map((user) => ({
-      displayName: user.displayName.trim(),
-      discordId: user.discordId.trim(),
-      team: user.team.trim(),
-    }));
+    const teamByMemberName = new Map<string, string>();
+    remoteData.leaderboard.forEach((entry) => {
+      const members = Array.isArray(entry["team members"]) ? entry["team members"] : [];
+      const teamName = members.map((member) => String(member).trim()).filter(Boolean).join(" / ");
+      members.forEach((member) => {
+        const key = String(member).trim().toLowerCase();
+        if (key && teamName && !teamByMemberName.has(key)) {
+          teamByMemberName.set(key, teamName);
+        }
+      });
+    });
+
+    const normalizedUsers = userDrafts.map((user) => {
+      const displayName = user.displayName.trim();
+      const discordId = user.discordId.trim();
+      const existingTeam = user.team.trim();
+      const inferredTeam = teamByMemberName.get(displayName.toLowerCase()) ?? existingTeam;
+
+      return {
+        displayName,
+        discordId,
+        team: inferredTeam,
+      };
+    });
 
     const hasInvalid = normalizedUsers.some(
       (user) => !user.displayName || !user.team,
@@ -1058,14 +1077,13 @@ export function TileGameClient({
                   <tr>
                     <th>Display Name</th>
                     <th>Discord ID</th>
-                    <th>Team</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {userDrafts.length === 0 ? (
                     <tr>
-                      <td colSpan={4}>No users configured yet.</td>
+                      <td colSpan={3}>No users configured yet.</td>
                     </tr>
                   ) : (
                     userDrafts.map((user, index) => (
@@ -1084,14 +1102,6 @@ export function TileGameClient({
                             className="roll-editor-input"
                             value={user.discordId}
                             onChange={(event) => updateUserDraft(index, "discordId", event.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            className="roll-editor-input"
-                            value={user.team}
-                            onChange={(event) => updateUserDraft(index, "team", event.target.value)}
                           />
                         </td>
                         <td>
