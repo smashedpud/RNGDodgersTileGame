@@ -1,7 +1,0 @@
-[serve.static]
-env = "BUN_PUBLIC_*"
-
-[builds]
-target = "browser" # Ensures the build is for the browser
-entrypoints = ["src/frontend.tsx"] # Entry point for your app
-outdir = "dist" # Output directory

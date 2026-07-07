@@ -1,0 +1,6 @@
+[variables]
+NIXPACKS_NODE_VERSION = "20"
+NIXPACKS_BUN_VERSION = "1.2.20"
+NIXPACKS_INSTALL_CMD = "bun install --frozen-lockfile"
+NIXPACKS_BUILD_CMD = "bun run build"
+NIXPACKS_START_CMD = "bun run start"
