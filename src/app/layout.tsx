@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "RNG Dodgers Tile Game",
-  description: "Track RNG Dodgers tile game progress with a MongoDB-backed leaderboard.",
+  description: "Track RNG Dodgers tile game progress with a leaderboard.",
 };
 
 export default function RootLayout({
