@@ -194,6 +194,13 @@ export function TileGameClient({
     state: "idle" | "saving" | "success" | "error";
     message?: string;
   }>({ state: "idle" });
+  const [rollEditorPopup, setRollEditorPopup] = useState<{
+    sourceIndex: number;
+    teamName: string;
+    rolls: number[];
+    newRollInput: string;
+    undoHistory: Array<{ rolls: number[]; action: string }>;
+  } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -423,6 +430,150 @@ export function TileGameClient({
     }
 
     return values;
+  };
+
+  const openRollEditor = (sourceIndex: number) => {
+    const rankedEntry = leaderboardTeams.find((entry) => entry.sourceIndex === sourceIndex);
+    if (!rankedEntry) {
+      return;
+    }
+
+    const canEditThisTeam = isAdmin || (currentUserTeam != null && rankedEntry.teamName === currentUserTeam);
+    if (!canEditThisTeam) {
+      return;
+    }
+
+    setRollEditorPopup({
+      sourceIndex,
+      teamName: rankedEntry.teamName,
+      rolls: rankedEntry.rolls ?? [],
+      newRollInput: "",
+      undoHistory: [],
+    });
+  };
+
+  const closeRollEditor = () => {
+    setRollEditorPopup(null);
+  };
+
+  const removeRollAtIndex = (rollIndex: number) => {
+    if (!rollEditorPopup) {
+      return;
+    }
+
+    const removedRoll = rollEditorPopup.rolls[rollIndex];
+    setRollEditorPopup({
+      ...rollEditorPopup,
+      rolls: rollEditorPopup.rolls.filter((_, index) => index !== rollIndex),
+      undoHistory: [
+        ...rollEditorPopup.undoHistory,
+        { rolls: rollEditorPopup.rolls, action: `Removed ${removedRoll} at position ${rollIndex + 1}` },
+      ],
+    });
+  };
+
+  const undoLastAction = () => {
+    if (!rollEditorPopup || rollEditorPopup.undoHistory.length === 0) {
+      return;
+    }
+
+    const lastState = rollEditorPopup.undoHistory[rollEditorPopup.undoHistory.length - 1];
+    if (!lastState) {
+      return;
+    }
+
+    setRollEditorPopup({
+      ...rollEditorPopup,
+      rolls: lastState.rolls,
+      undoHistory: rollEditorPopup.undoHistory.slice(0, -1),
+    });
+  };
+
+  const updateNewRollInput = (value: string) => {
+    if (!rollEditorPopup) {
+      return;
+    }
+
+    setRollEditorPopup({
+      ...rollEditorPopup,
+      newRollInput: value,
+    });
+  };
+
+  const addNewRoll = () => {
+    if (!rollEditorPopup) {
+      return;
+    }
+
+    const value = Number(rollEditorPopup.newRollInput.trim());
+    if (!Number.isInteger(value) || value < 1 || value > 6) {
+      return;
+    }
+
+    setRollEditorPopup({
+      ...rollEditorPopup,
+      rolls: [...rollEditorPopup.rolls, value],
+      newRollInput: "",
+      undoHistory: [
+        ...rollEditorPopup.undoHistory,
+        { rolls: rollEditorPopup.rolls, action: `Added ${value}` },
+      ],
+    });
+  };
+
+  const saveRollsFromPopup = async () => {
+    if (!rollEditorPopup) {
+      return;
+    }
+
+    const nextEntries = remoteData.leaderboard.map((entry, index) => {
+      if (index !== rollEditorPopup.sourceIndex) {
+        return entry;
+      }
+
+      return {
+        ...entry,
+        rolls: rollEditorPopup.rolls,
+      };
+    });
+
+    setSaveStatus({ state: "saving", message: "Saving rolls..." });
+
+    try {
+      const response = await fetch(
+        "/api/leaderboard",
+        isAdmin
+          ? {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ entries: nextEntries }),
+            }
+          : {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ team: rollEditorPopup.teamName, rolls: rollEditorPopup.rolls }),
+            },
+      );
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Failed to save rolls");
+      }
+
+      setRemoteData((current) => ({
+        ...current,
+        leaderboard: nextEntries,
+      }));
+      setSaveStatus({ state: "success", message: "Rolls updated." });
+      closeRollEditor();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save rolls";
+      setSaveStatus({ state: "error", message });
+    }
   };
 
   const saveTeamRolls = async (sourceIndex: number) => {
@@ -933,6 +1084,105 @@ export function TileGameClient({
         </div>
       ) : null}
 
+      {rollEditorPopup ? (
+        <div className="roll-editor-overlay" onClick={closeRollEditor}>
+          <div className="roll-editor-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="roll-editor-header">
+              <h3>Edit Rolls - {rollEditorPopup.teamName}</h3>
+              <div className="roll-editor-header-actions">
+                <button
+                  type="button"
+                  className="roll-undo-button"
+                  onClick={undoLastAction}
+                  disabled={rollEditorPopup.undoHistory.length === 0}
+                  title={rollEditorPopup.undoHistory.length > 0 ? `Undo: ${rollEditorPopup.undoHistory[rollEditorPopup.undoHistory.length - 1]?.action}` : "Nothing to undo"}
+                >
+                  ↶ Undo
+                </button>
+                <button
+                  type="button"
+                  className="roll-editor-close"
+                  onClick={closeRollEditor}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="roll-editor-content">
+              <div className="dice-container">
+                {rollEditorPopup.rolls.length === 0 ? (
+                  <p className="dice-empty-message">No rolls yet. Add rolls below.</p>
+                ) : (
+                  rollEditorPopup.rolls.map((roll, index) => {
+                    const diceSymbols = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+                    return (
+                      <button
+                        key={index}
+                        type="button"
+                        className="dice-button"
+                        onClick={() => removeRollAtIndex(index)}
+                        title={`Remove roll ${roll}`}
+                      >
+                        <span className="dice-symbol">{diceSymbols[roll - 1] ?? '?'}</span>
+                        <span className="dice-value">{roll}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <div className="roll-input-section">
+                <label htmlFor="new-roll-input" className="roll-input-label">
+                  Add New Roll (1-6):
+                </label>
+                <div className="roll-input-row">
+                  <input
+                    id="new-roll-input"
+                    type="number"
+                    min="1"
+                    max="6"
+                    className="roll-editor-input"
+                    value={rollEditorPopup.newRollInput}
+                    onChange={(e) => updateNewRollInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        addNewRoll();
+                      }
+                    }}
+                    placeholder="Enter 1-6"
+                  />
+                  <button
+                    type="button"
+                    className="roll-save-button"
+                    onClick={addNewRoll}
+                    disabled={!rollEditorPopup.newRollInput.trim()}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="roll-editor-actions">
+              <button
+                type="button"
+                className="roll-save-button"
+                onClick={() => void saveRollsFromPopup()}
+                disabled={saveStatus.state === "saving"}
+              >
+                {saveStatus.state === "saving" ? "Saving..." : "Save Rolls"}
+              </button>
+              <button
+                type="button"
+                className="roll-cancel-button"
+                onClick={closeRollEditor}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {isLeaderboardView ? (
         <>
         <div className="leaderboard-card">
@@ -1019,30 +1269,13 @@ export function TileGameClient({
                   {showRollsColumn ? (
                     <td>
                       {isAdmin || team.teamName === currentUserTeam ? (
-                        <div className="roll-editor">
-                          <input
-                            type="text"
-                            className="roll-editor-input"
-                            value={draftRollsByIndex[team.sourceIndex] ?? ""}
-                            onChange={(event) =>
-                              setDraftRollsByIndex((current) => ({
-                                ...current,
-                                [team.sourceIndex]: event.target.value,
-                              }))
-                            }
-                            aria-label={`Rolls for ${team["team members"].join(", ")}`}
-                          />
-                          <button
-                            type="button"
-                            className="roll-save-button"
-                            disabled={saveStatus.state === "saving"}
-                            onClick={() => {
-                              void saveTeamRolls(team.sourceIndex);
-                            }}
-                          >
-                            Save
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          className="roll-edit-button"
+                          onClick={() => openRollEditor(team.sourceIndex)}
+                        >
+                          Edit Rolls ({team.rolls?.length ?? 0})
+                        </button>
                       ) : (
                         <span>-</span>
                       )}

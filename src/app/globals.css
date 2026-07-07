@@ -371,6 +371,13 @@ body { overflow-x: hidden; }
   border-bottom: 1px solid #e5e7eb;
 }
 
+.leaderboard-table th:nth-child(3),
+.leaderboard-table td:nth-child(3),
+.leaderboard-table th:nth-child(4),
+.leaderboard-table td:nth-child(4) {
+  text-align: center;
+}
+
 .leaderboard-table th {
   background: #f3f4f6;
   color: #111827;
@@ -389,9 +396,13 @@ body { overflow-x: hidden; }
   cursor: pointer;
   border: none;
   background: transparent;
-  padding: 0;
+  padding: 12px 14px;
+  margin: -12px -14px;
   color: inherit;
   font: inherit;
+  display: block;
+  width: calc(100% + 28px);
+  text-align: center;
 }
 
 .leaderboard-popup {
@@ -470,6 +481,224 @@ body { overflow-x: hidden; }
 .roll-save-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.roll-edit-button {
+  border: 1px solid rgba(17, 24, 39, 0.22);
+  border-radius: 8px;
+  background: #111827;
+  color: #f9fafb;
+  font: inherit;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.roll-edit-button:hover {
+  background: #1f2937;
+}
+
+.roll-editor-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.roll-editor-popup {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.roll-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.roll-editor-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.roll-editor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.roll-undo-button {
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  color: #374151;
+  cursor: pointer;
+  transition: background-color 150ms ease, opacity 150ms ease;
+  font-weight: 500;
+}
+
+.roll-undo-button:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.roll-undo-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.roll-editor-close {
+  background: transparent;
+  border: none;
+  font-size: 2rem;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.roll-editor-close:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.roll-editor-content {
+  padding: 20px;
+}
+
+.dice-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+  min-height: 80px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 2px dashed #d1d5db;
+}
+
+.dice-empty-message {
+  margin: 0;
+  color: #6b7280;
+  font-style: italic;
+  align-self: center;
+  width: 100%;
+  text-align: center;
+}
+
+.dice-button {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.dice-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.dice-button:active {
+  transform: scale(0.95);
+}
+
+.dice-symbol {
+  font-size: 48px;
+  line-height: 1;
+  user-select: none;
+}
+
+.dice-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  user-select: none;
+}
+
+.roll-input-section {
+  margin-top: 16px;
+}
+
+.roll-input-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.95rem;
+}
+
+.roll-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.roll-input-row .roll-editor-input {
+  flex: 1;
+  max-width: 120px;
+}
+
+.roll-editor-actions {
+  display: flex;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid #e5e7eb;
+  justify-content: flex-end;
+}
+
+.roll-cancel-button {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #374151;
+  font: inherit;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.roll-cancel-button:hover {
+  background: #f3f4f6;
+}
+
+@media (max-width: 720px) {
+  .roll-editor-popup {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 0;
+    max-height: 100vh;
+  }
+
+  .dice-symbol {
+    font-size: 36px;
+  }
 }
 
 .roll-save-status {

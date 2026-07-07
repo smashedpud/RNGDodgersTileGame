@@ -1,3 +1,21 @@
+// Polyfill for Bun: MongoDB driver checks v8.isBuildingSnapshot which Bun doesn't implement
+if (typeof (globalThis as any).Bun !== "undefined") {
+  const originalGetBuiltinModule = (process as any).getBuiltinModule;
+  if (originalGetBuiltinModule) {
+    (process as any).getBuiltinModule = function (name: string) {
+      if (name === "v8") {
+        return {
+          ...originalGetBuiltinModule.call(this, name),
+          startupSnapshot: {
+            isBuildingSnapshot: () => false,
+          },
+        };
+      }
+      return originalGetBuiltinModule.call(this, name);
+    };
+  }
+}
+
 import { bootstrapGameData } from "../src/lib/game-data-repository";
 import { getMongoClientPromise } from "../src/lib/mongodb";
 
