@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { DEFAULT_GAME_DATA } from "@/lib/defaultData";
 import type { BoardId, RawLeaderboardEntry, SquareData } from "@/lib/types";
 
@@ -40,6 +41,11 @@ type LeaderboardEntry = {
   board: string;
   rolls?: number[];
   color?: string;
+};
+
+type RankedLeaderboardEntry = LeaderboardEntry & {
+  sourceIndex: number;
+  originalEntry: RawLeaderboardEntry;
 };
 
 type BoardBounds = {
@@ -151,6 +157,7 @@ export function TileGameClient({
   squareWidth = 120,
   squareHeight = 80,
 }: Props) {
+  const { data: session, status } = useSession();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [effectiveColumns, setEffectiveColumns] = useState(columns);
   const [squareData, setSquareData] = useState<Record<number, unknown>>({});
@@ -174,6 +181,11 @@ export function TileGameClient({
   } | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
   const [remoteData, setRemoteData] = useState(DEFAULT_GAME_DATA);
+  const [draftRollsByIndex, setDraftRollsByIndex] = useState<Record<number, string>>({});
+  const [saveStatus, setSaveStatus] = useState<{
+    state: "idle" | "saving" | "success" | "error";
+    message?: string;
+  }>({ state: "idle" });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -361,13 +373,94 @@ export function TileGameClient({
     return lookup;
   }, [boardMap]);
 
-  const leaderboardTeams = [...remoteData.leaderboard]
-    .map((entry) => normalizeLeaderboardEntry(entry))
+  const leaderboardTeams: RankedLeaderboardEntry[] = remoteData.leaderboard
+    .map((entry, sourceIndex) => ({
+      ...normalizeLeaderboardEntry(entry),
+      sourceIndex,
+      originalEntry: entry,
+    }))
     .sort(
       (a, b) =>
         b["current tile"] - a["current tile"] ||
         b["tiles completed"].length - a["tiles completed"].length,
     );
+
+  useEffect(() => {
+    const nextDrafts: Record<number, string> = {};
+    remoteData.leaderboard.forEach((entry, index) => {
+      nextDrafts[index] = Array.isArray(entry.rolls) ? entry.rolls.join(", ") : "";
+    });
+    setDraftRollsByIndex(nextDrafts);
+  }, [remoteData.leaderboard]);
+
+  const parseRollsInput = (rawValue: string) => {
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      return [] as number[];
+    }
+
+    const parts = trimmed.split(/[\s,]+/).filter(Boolean);
+    const values = parts.map((part) => Number(part));
+    const allValid = values.every((value) => Number.isInteger(value) && value > 0);
+
+    if (!allValid) {
+      return null;
+    }
+
+    return values;
+  };
+
+  const saveTeamRolls = async (sourceIndex: number) => {
+    if (permission !== "admin") {
+      return;
+    }
+
+    const parsed = parseRollsInput(draftRollsByIndex[sourceIndex] ?? "");
+    if (!parsed) {
+      setSaveStatus({
+        state: "error",
+        message: "Rolls must be positive integers separated by commas.",
+      });
+      return;
+    }
+
+    const nextEntries = remoteData.leaderboard.map((entry, index) => {
+      if (index !== sourceIndex) {
+        return entry;
+      }
+
+      return {
+        ...entry,
+        rolls: parsed,
+      };
+    });
+
+    setSaveStatus({ state: "saving", message: "Saving rolls..." });
+
+    try {
+      const response = await fetch("/api/leaderboard", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ entries: nextEntries }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Failed to save rolls");
+      }
+
+      setRemoteData((current) => ({
+        ...current,
+        leaderboard: nextEntries,
+      }));
+      setSaveStatus({ state: "success", message: "Rolls updated." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save rolls";
+      setSaveStatus({ state: "error", message });
+    }
+  };
 
   const teamsByCurrentTile = useMemo(() => {
     const groups = new Map<number, LeaderboardEntry[]>();
@@ -385,6 +478,9 @@ export function TileGameClient({
     () => Object.fromEntries(BOARDS.map((board, index) => [board.id, String(index + 1)])),
     [],
   );
+  const permission = session?.user?.permission ?? "viewer";
+  const sessionLabel = session?.user?.name ?? session?.user?.discordId ?? "Guest";
+  const isAdmin = permission === "admin";
 
   const showCurrentBoardColumn = leaderboardTeams.some((team) => team.board !== BOARDS[0]?.id);
   const canDecreaseGrid = gridScale > MIN_GRID_SCALE;
@@ -577,6 +673,30 @@ export function TileGameClient({
           RNG Dodgers - <span className="title-accent">Tile Game</span> - 2 Man
         </h1>
         <div className="header-controls">
+          <div className="auth-controls">
+            {status === "authenticated" ? (
+              <>
+                <span className="auth-badge">
+                  Signed in as {sessionLabel} ({permission})
+                </span>
+                <button
+                  type="button"
+                  className="board-button"
+                  onClick={() => signOut({ callbackUrl: "/" })}
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="board-button"
+                onClick={() => signIn("discord")}
+              >
+                Sign in with Discord
+              </button>
+            )}
+          </div>
           <div className="board-menu">
             {BOARDS.map((board) => (
               <button
@@ -653,9 +773,21 @@ export function TileGameClient({
                 {showCurrentBoardColumn ? <th>Current Board</th> : null}
                 <th>Current Tile</th>
                 <th>Total Tiles Completed</th>
+                <th>Rolls</th>
               </tr>
             </thead>
             <tbody>
+              {isAdmin && saveStatus.state !== "idle" ? (
+                <tr>
+                  <td colSpan={showCurrentBoardColumn ? 5 : 4}>
+                    <div
+                      className={`roll-save-status ${saveStatus.state === "error" ? "error" : "success"}`}
+                    >
+                      {saveStatus.message}
+                    </div>
+                  </td>
+                </tr>
+              ) : null}
               {leaderboardTeams.map((team, index) => (
                 <tr key={`${team["team members"].join("-")}-${index}`}>
                   <td className="leaderboard-team-pill">
@@ -713,6 +845,38 @@ export function TileGameClient({
                     >
                       {team["tiles completed"].length}
                     </button>
+                  </td>
+                  <td>
+                    {isAdmin ? (
+                      <div className="roll-editor">
+                        <input
+                          type="text"
+                          className="roll-editor-input"
+                          value={draftRollsByIndex[team.sourceIndex] ?? ""}
+                          onChange={(event) =>
+                            setDraftRollsByIndex((current) => ({
+                              ...current,
+                              [team.sourceIndex]: event.target.value,
+                            }))
+                          }
+                          aria-label={`Rolls for ${team["team members"].join(", ")}`}
+                        />
+                        <button
+                          type="button"
+                          className="roll-save-button"
+                          disabled={saveStatus.state === "saving"}
+                          onClick={() => {
+                            void saveTeamRolls(team.sourceIndex);
+                          }}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    ) : (
+                      <span>
+                        {Array.isArray(team.originalEntry.rolls) ? team.originalEntry.rolls.join(", ") : "-"}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

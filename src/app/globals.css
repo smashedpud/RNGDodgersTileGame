@@ -70,6 +70,23 @@ body { overflow-x: hidden; }
   gap: 12px;
 }
 
+.auth-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.auth-badge {
+  color: #f4f4f4;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
 .board-menu {
   display: inline-flex;
   gap: 12px;
@@ -400,6 +417,51 @@ body { overflow-x: hidden; }
   border-radius: 50%;
   border: 2px solid rgba(0, 0, 0, 0.2);
   flex-shrink: 0;
+}
+
+.roll-editor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roll-editor-input {
+  min-width: 120px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+}
+
+.roll-save-button {
+  border: 1px solid rgba(17, 24, 39, 0.22);
+  border-radius: 8px;
+  background: #111827;
+  color: #f9fafb;
+  font: inherit;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.roll-save-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.roll-save-status {
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+.roll-save-status.success {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.roll-save-status.error {
+  background: #fef2f2;
+  color: #991b1b;
 }
 
 .special-row {

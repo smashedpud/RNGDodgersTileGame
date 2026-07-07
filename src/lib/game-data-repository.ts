@@ -1,14 +1,22 @@
 import { DEFAULT_BOARDS, DEFAULT_LEADERBOARD } from "@/lib/defaultData";
 import { getMongoClientPromise } from "@/lib/mongodb";
+import { isValidPermission, type UserPermission } from "@/lib/permissions";
 import type { BoardId, GameDataResponse, RawLeaderboardEntry, SquareData } from "@/lib/types";
 
 const DB_NAME = process.env.MONGODB_DB ?? "rng_dodgers";
 const BOARDS_COLLECTION = "boards";
 const LEADERBOARD_COLLECTION = "leaderboard";
+const USER_PERMISSIONS_COLLECTION = "user_permissions";
 
 type BoardDocument = {
   key: BoardId;
   data: SquareData;
+};
+
+type UserPermissionDocument = {
+  discordId: string;
+  permission: UserPermission;
+  updatedAt: Date;
 };
 
 async function getDb() {
@@ -35,6 +43,27 @@ async function ensureSeeded() {
     await db
       .collection<RawLeaderboardEntry>(LEADERBOARD_COLLECTION)
       .insertMany(DEFAULT_LEADERBOARD);
+  }
+
+  const permissionCollection = db.collection<UserPermissionDocument>(USER_PERMISSIONS_COLLECTION);
+  await permissionCollection.createIndex({ discordId: 1 }, { unique: true });
+
+  const adminIds = (process.env.DISCORD_ADMIN_IDS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+  for (const discordId of adminIds) {
+    await permissionCollection.updateOne(
+      { discordId },
+      {
+        $set: {
+          permission: "admin",
+          updatedAt: new Date(),
+        },
+      },
+      { upsert: true },
+    );
   }
 }
 
@@ -79,4 +108,17 @@ export async function replaceLeaderboard(entries: RawLeaderboardEntry[]) {
   if (entries.length > 0) {
     await collection.insertMany(entries);
   }
+}
+
+export async function getPermissionByDiscordId(discordId: string): Promise<UserPermission> {
+  const db = await getDb();
+  const permissionDoc = await db
+    .collection<UserPermissionDocument>(USER_PERMISSIONS_COLLECTION)
+    .findOne({ discordId });
+
+  if (!permissionDoc || !isValidPermission(permissionDoc.permission)) {
+    return "viewer";
+  }
+
+  return permissionDoc.permission;
 }

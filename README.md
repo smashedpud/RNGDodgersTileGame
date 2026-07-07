@@ -31,6 +31,13 @@ cp .env.example .env.local
 
 - `MONGODB_URI`: your MongoDB connection string
 - `MONGODB_DB`: database name (default: `rng_dodgers`)
+- `DISCORD_CLIENT_ID`: Discord OAuth app client ID
+- `DISCORD_CLIENT_SECRET`: Discord OAuth app client secret
+- `AUTH_SECRET`: random long secret for auth token signing
+- `AUTH_URL`: app base URL only (for local use `http://localhost:3000`, no `/api/auth` suffix)
+- `AUTH_TRUST_HOST`: set to `true` behind Railway proxy
+- `RAILWAY_PUBLIC_DOMAIN`: Railway assigned host, used to auto-resolve `AUTH_URL` when needed
+- `DISCORD_ADMIN_IDS`: comma-separated Discord user IDs to auto-grant admin role
 
 4. Run development server:
 
@@ -54,6 +61,7 @@ Open `http://localhost:3000`.
 
 - `POST /api/leaderboard`
 	- Replaces the leaderboard collection.
+	- Requires Discord sign-in with `editor` or `admin` permission.
 	- Body shape:
 
 ```json
@@ -76,9 +84,23 @@ Open `http://localhost:3000`.
 	 - `MONGODB_URI`
 	 - `MONGODB_DB`
 	 - `NODE_ENV=production`
+	 - `DISCORD_CLIENT_ID`
+	 - `DISCORD_CLIENT_SECRET`
+	 - `AUTH_SECRET`
+	 - `AUTH_URL`
+	 - `AUTH_TRUST_HOST=true`
+	 - `DISCORD_ADMIN_IDS`
 	- `NIXPACKS_NODE_VERSION=20`
 	- `NIXPACKS_BUN_VERSION=1.2.20`
 4. Deploy.
+
+Discord OAuth setup note:
+
+- In the Discord developer portal, set Redirects to:
+	- `https://<your-domain>/api/auth/callback/discord`
+- Example on Railway:
+	- `https://rngdodgerstilegame-production.up.railway.app/api/auth/callback/discord`
+- Discord should redirect to this callback path first; NextAuth then sends users back to your app page.
 
 Railway reads `railway.json` and starts the service with:
 
@@ -92,3 +114,5 @@ bun run start
 - The UI now fetches data from the backend (`/api/game-data`) instead of bundling data only at build time.
 - You can run bootstrap manually with `bun run bootstrap:mongo`.
 - Production bootstrap is strict by default (`NODE_ENV=production`), and can be forced in any environment with `MONGO_BOOTSTRAP_STRICT=true`.
+- Permissions are stored in MongoDB by Discord user ID (`user_permissions` collection).
+- `DISCORD_ADMIN_IDS` is applied at bootstrap, upserting listed users as `admin`.

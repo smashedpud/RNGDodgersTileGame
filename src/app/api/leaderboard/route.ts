@@ -1,9 +1,22 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { replaceLeaderboard } from "@/lib/game-data-repository";
+import { canEditTeamRolls } from "@/lib/permissions";
 import type { RawLeaderboardEntry } from "@/lib/types";
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    const permission = session?.user?.permission;
+
+    if (!session?.user?.discordId) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
+    if (!canEditTeamRolls(permission)) {
+      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
+    }
+
     const body = (await request.json()) as { entries?: RawLeaderboardEntry[] };
     const entries = Array.isArray(body.entries) ? body.entries : null;
 
