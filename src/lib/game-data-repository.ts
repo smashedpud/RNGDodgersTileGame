@@ -1,6 +1,7 @@
 import { DEFAULT_BOARDS, DEFAULT_LEADERBOARD } from "@/lib/defaultData";
 import { getMongoClientPromise } from "@/lib/mongodb";
 import { isValidPermission, type UserPermission } from "@/lib/permissions";
+import type { ObjectId } from "mongodb";
 import type { BoardId, GameDataResponse, GameUser, RawLeaderboardEntry, SquareData } from "@/lib/types";
 
 const DB_NAME = process.env.MONGODB_DB ?? "rng_dodgers";
@@ -8,6 +9,7 @@ const BOARDS_COLLECTION = "boards";
 const LEADERBOARD_COLLECTION = "leaderboard";
 const USER_PERMISSIONS_COLLECTION = "user_permissions";
 const USERS_COLLECTION = "users";
+let seedState: "pending" | "ready" | "readonly" = "pending";
 
 type BoardDocument = {
   key: BoardId;
@@ -20,6 +22,11 @@ type UserPermissionDocument = {
   updatedAt: Date;
 };
 
+type LeaderboardDocument = RawLeaderboardEntry & {
+  teamKey: string;
+  updatedAt: Date;
+};
+
 type UserDocument = {
   displayName: string;
   team: string;
@@ -28,6 +35,40 @@ type UserDocument = {
 };
 
 const getTeamNameFromMembers = (members: string[]) => members.map((member) => member.trim()).join(" / ");
+
+function toTeamKey(members: string[]) {
+  return members
+    .map((member) => member.trim().toLowerCase())
+    .filter(Boolean)
+    .sort()
+    .join("|");
+}
+
+function teamNameToKey(teamName: string) {
+  const members = teamName
+    .split("/")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return toTeamKey(members);
+}
+
+function toLeaderboardDocument(entry: RawLeaderboardEntry): LeaderboardDocument {
+  const members = Array.isArray(entry["team members"])
+    ? entry["team members"].map((member) => String(member).trim()).filter(Boolean)
+    : [];
+
+  return {
+    ...entry,
+    "team members": members,
+    teamKey: toTeamKey(members),
+    updatedAt: new Date(),
+  };
+}
+
+function toRawLeaderboardEntry(doc: LeaderboardDocument): RawLeaderboardEntry {
+  const { teamKey: _teamKey, updatedAt: _updatedAt, ...entry } = doc;
+  return entry;
+}
 
 function buildUsersFromLeaderboard(entries: RawLeaderboardEntry[]): GameUser[] {
   const users: GameUser[] = [];
@@ -60,77 +101,135 @@ function buildUsersFromLeaderboard(entries: RawLeaderboardEntry[]): GameUser[] {
   return users;
 }
 
+function isOutOfDiskError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: number; codeName?: string; message?: string };
+  return (
+    candidate.code === 14031 ||
+    candidate.codeName === "OutOfDiskSpace" ||
+    (typeof candidate.message === "string" && candidate.message.includes("OutOfDiskSpace"))
+  );
+}
+
+function ensureWritable() {
+  if (seedState !== "readonly") {
+    return;
+  }
+
+  const error = new Error("Mongo is in read-only fallback due to OutOfDiskSpace.");
+  (error as Error & { codeName?: string }).codeName = "OutOfDiskSpace";
+  throw error;
+}
+
 async function getDb() {
   const client = await getMongoClientPromise();
   return client.db(DB_NAME);
 }
 
 async function ensureSeeded() {
+  if (seedState === "ready" || seedState === "readonly") {
+    return;
+  }
+
   const db = await getDb();
+  try {
+    const boardCount = await db.collection<BoardDocument>(BOARDS_COLLECTION).countDocuments();
+    if (boardCount === 0) {
+      await db.collection<BoardDocument>(BOARDS_COLLECTION).insertMany([
+        { key: "board1", data: DEFAULT_BOARDS.board1 },
+        { key: "board2", data: DEFAULT_BOARDS.board2 },
+      ]);
+    }
 
-  const boardCount = await db.collection<BoardDocument>(BOARDS_COLLECTION).countDocuments();
-  if (boardCount === 0) {
-    await db.collection<BoardDocument>(BOARDS_COLLECTION).insertMany([
-      { key: "board1", data: DEFAULT_BOARDS.board1 },
-      { key: "board2", data: DEFAULT_BOARDS.board2 },
-    ]);
-  }
+    const leaderboardCount = await db
+      .collection<LeaderboardDocument>(LEADERBOARD_COLLECTION)
+      .countDocuments();
 
-  const leaderboardCount = await db
-    .collection<RawLeaderboardEntry>(LEADERBOARD_COLLECTION)
-    .countDocuments();
+    const leaderboardCollection = db.collection<LeaderboardDocument>(LEADERBOARD_COLLECTION);
+    await leaderboardCollection.createIndex({ teamKey: 1 }, { unique: true });
 
-  if (leaderboardCount === 0) {
-    await db
-      .collection<RawLeaderboardEntry>(LEADERBOARD_COLLECTION)
-      .insertMany(DEFAULT_LEADERBOARD);
-  }
+    if (leaderboardCount === 0) {
+      await leaderboardCollection.insertMany(DEFAULT_LEADERBOARD.map((entry) => toLeaderboardDocument(entry)));
+    } else {
+      const docsMissingTeamKey = await leaderboardCollection
+        .find({ teamKey: { $exists: false } })
+        .toArray();
 
-  const permissionCollection = db.collection<UserPermissionDocument>(USER_PERMISSIONS_COLLECTION);
-  await permissionCollection.createIndex({ discordId: 1 }, { unique: true });
+      for (const doc of docsMissingTeamKey) {
+        const docWithId = doc as LeaderboardDocument & { _id: ObjectId };
+        const next = toLeaderboardDocument(doc);
+        await leaderboardCollection.updateOne(
+          { _id: docWithId._id },
+          {
+            $set: {
+              teamKey: next.teamKey,
+              "team members": next["team members"],
+              updatedAt: new Date(),
+            },
+          },
+        );
+      }
+    }
 
-  const usersCollection = db.collection<UserDocument>(USERS_COLLECTION);
-  await usersCollection.dropIndex("discordId_1").catch(() => undefined);
-  // Keep compatibility with Mongo variants that do not support $ne in partial indexes.
-  // We store blank IDs as missing fields and index only present IDs via sparse unique index.
-  await usersCollection.updateMany({ discordId: "" }, { $unset: { discordId: "" } });
-  await usersCollection.createIndex({ discordId: 1 }, { unique: true, sparse: true });
+    const permissionCollection = db.collection<UserPermissionDocument>(USER_PERMISSIONS_COLLECTION);
+    await permissionCollection.createIndex({ discordId: 1 }, { unique: true });
 
-  const usersCount = await usersCollection.countDocuments();
-  if (usersCount === 0) {
-    const leaderboardEntries = await db
-      .collection<RawLeaderboardEntry>(LEADERBOARD_COLLECTION)
-      .find({})
-      .toArray();
+    const usersCollection = db.collection<UserDocument>(USERS_COLLECTION);
+    await usersCollection.dropIndex("discordId_1").catch(() => undefined);
+    // Keep compatibility with Mongo variants that do not support $ne in partial indexes.
+    // We store blank IDs as missing fields and index only present IDs via sparse unique index.
+    await usersCollection.updateMany({ discordId: "" }, { $unset: { discordId: "" } });
+    await usersCollection.createIndex({ discordId: 1 }, { unique: true, sparse: true });
 
-    const seedUsers = buildUsersFromLeaderboard(leaderboardEntries);
-    if (seedUsers.length > 0) {
-      const now = new Date();
-      await usersCollection.insertMany(
-        seedUsers.map((user) => ({
-          ...user,
-          updatedAt: now,
-        })),
+    const usersCount = await usersCollection.countDocuments();
+    if (usersCount === 0) {
+      const leaderboardEntries = await db
+        .collection<RawLeaderboardEntry>(LEADERBOARD_COLLECTION)
+        .find({})
+        .toArray();
+
+      const seedUsers = buildUsersFromLeaderboard(leaderboardEntries);
+      if (seedUsers.length > 0) {
+        const now = new Date();
+        await usersCollection.insertMany(
+          seedUsers.map((user) => ({
+            ...user,
+            updatedAt: now,
+          })),
+        );
+      }
+    }
+
+    const adminIds = (process.env.DISCORD_ADMIN_IDS ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+
+    for (const discordId of adminIds) {
+      await permissionCollection.updateOne(
+        { discordId },
+        {
+          $set: {
+            permission: "admin",
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true },
       );
     }
-  }
 
-  const adminIds = (process.env.DISCORD_ADMIN_IDS ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
+    seedState = "ready";
+  } catch (error) {
+    if (isOutOfDiskError(error)) {
+      seedState = "readonly";
+      console.warn("[mongo] OutOfDiskSpace detected. Running in read-only fallback mode.");
+      return;
+    }
 
-  for (const discordId of adminIds) {
-    await permissionCollection.updateOne(
-      { discordId },
-      {
-        $set: {
-          permission: "admin",
-          updatedAt: new Date(),
-        },
-      },
-      { upsert: true },
-    );
+    throw error;
   }
 }
 
@@ -148,7 +247,7 @@ export async function getGameData(): Promise<GameDataResponse> {
     .toArray();
 
   const leaderboard = await db
-    .collection<RawLeaderboardEntry>(LEADERBOARD_COLLECTION)
+    .collection<LeaderboardDocument>(LEADERBOARD_COLLECTION)
     .find({})
     .toArray();
 
@@ -169,7 +268,7 @@ export async function getGameData(): Promise<GameDataResponse> {
 
   return {
     boards,
-    leaderboard,
+    leaderboard: leaderboard.map((doc) => toRawLeaderboardEntry(doc)),
     users: users.map((user) => ({
       displayName: user.displayName,
       discordId: user.discordId ?? "",
@@ -179,13 +278,43 @@ export async function getGameData(): Promise<GameDataResponse> {
 }
 
 export async function replaceLeaderboard(entries: RawLeaderboardEntry[]) {
+  await ensureSeeded();
+  ensureWritable();
   const db = await getDb();
-  const collection = db.collection<RawLeaderboardEntry>(LEADERBOARD_COLLECTION);
+  const collection = db.collection<LeaderboardDocument>(LEADERBOARD_COLLECTION);
 
-  await collection.deleteMany({});
-  if (entries.length > 0) {
-    await collection.insertMany(entries);
+  const docs = entries.map((entry) => toLeaderboardDocument(entry));
+  const teamKeys = docs.map((doc) => doc.teamKey);
+
+  if (docs.length === 0) {
+    await collection.deleteMany({});
+    return;
   }
+
+  await collection.bulkWrite(
+    docs.map((doc) => ({
+      updateOne: {
+        filter: { teamKey: doc.teamKey },
+        update: {
+          $set: {
+            "team members": doc["team members"],
+            rolls: doc.rolls,
+            board: doc.board,
+            color: doc.color,
+            "tiles completed": doc["tiles completed"],
+            "current tile": doc["current tile"],
+            updatedAt: new Date(),
+          },
+          $setOnInsert: {
+            teamKey: doc.teamKey,
+          },
+        },
+        upsert: true,
+      },
+    })),
+  );
+
+  await collection.deleteMany({ teamKey: { $nin: teamKeys } });
 }
 
 export async function getPermissionByDiscordId(discordId: string): Promise<UserPermission> {
@@ -241,37 +370,28 @@ export async function getUserByDiscordId(discordId: string): Promise<GameUser | 
 }
 
 export async function updateTeamRolls(teamName: string, rolls: number[]): Promise<boolean> {
+  await ensureSeeded();
+  ensureWritable();
   const db = await getDb();
-  const collection = db.collection<RawLeaderboardEntry>(LEADERBOARD_COLLECTION);
-  const entries = await collection.find({}).toArray();
+  const collection = db.collection<LeaderboardDocument>(LEADERBOARD_COLLECTION);
+  const teamKey = teamNameToKey(teamName);
 
-  const nextEntries = entries.map((entry) => {
-    const members = Array.isArray(entry["team members"]) ? entry["team members"] : [];
-    const normalizedTeamName = getTeamNameFromMembers(members);
-    if (normalizedTeamName !== teamName) {
-      return entry;
-    }
+  const result = await collection.updateOne(
+    { teamKey },
+    {
+      $set: {
+        rolls,
+        updatedAt: new Date(),
+      },
+    },
+  );
 
-    return {
-      ...entry,
-      rolls,
-    };
-  });
-
-  const changed = nextEntries.some((entry, index) => entry !== entries[index]);
-  if (!changed) {
-    return false;
-  }
-
-  await collection.deleteMany({});
-  if (nextEntries.length > 0) {
-    await collection.insertMany(nextEntries);
-  }
-
-  return true;
+  return result.matchedCount > 0;
 }
 
 export async function replaceUsers(users: GameUser[]) {
+  await ensureSeeded();
+  ensureWritable();
   const db = await getDb();
   const collection = db.collection<UserDocument>(USERS_COLLECTION);
 

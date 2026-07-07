@@ -5,6 +5,19 @@ function isStrictMode() {
   return process.env.NODE_ENV === "production" || process.env.MONGO_BOOTSTRAP_STRICT === "true";
 }
 
+function isOutOfDiskError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: number; codeName?: string; message?: string };
+  return (
+    candidate.code === 14031 ||
+    candidate.codeName === "OutOfDiskSpace" ||
+    (typeof candidate.message === "string" && candidate.message.includes("OutOfDiskSpace"))
+  );
+}
+
 async function main() {
   const uri = process.env.MONGODB_URI;
   if (!uri) {
@@ -23,6 +36,12 @@ async function main() {
 
 main()
   .catch((error) => {
+    if (isOutOfDiskError(error)) {
+      console.warn("[bootstrap] Mongo is out of disk space. Starting in read-only fallback mode.");
+      console.warn(error);
+      return;
+    }
+
     if (isStrictMode()) {
       console.error("[bootstrap] Failed to initialize MongoDB data.", error);
       process.exitCode = 1;
