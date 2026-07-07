@@ -91,6 +91,8 @@ body { overflow-x: hidden; }
   display: inline-flex;
   gap: 12px;
   margin-top: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
 }
 
 .grid-size-controls {
@@ -347,6 +349,21 @@ body { overflow-x: hidden; }
   border-radius: 12px;
 }
 
+@media (max-width: 720px) {
+  .leaderboard-card {
+    overflow-x: auto;
+  }
+  
+  .leaderboard-table {
+    min-width: 600px;
+  }
+  
+  .leaderboard-table th:last-child,
+  .leaderboard-table td:last-child {
+    max-width: 200px;
+  }
+}
+
 .leaderboard-table th,
 .leaderboard-table td {
   padding: 12px 14px;
@@ -431,6 +448,13 @@ body { overflow-x: hidden; }
   border-radius: 8px;
   padding: 6px 8px;
   font: inherit;
+}
+
+@media (max-width: 720px) {
+  .roll-editor-input {
+    min-width: 80px;
+    max-width: 140px;
+  }
 }
 
 .roll-save-button {
@@ -582,7 +606,7 @@ body { overflow-x: hidden; }
 
 .admin-slot-row {
   display: grid;
-  grid-template-columns: 120px 1fr 1fr auto;
+  grid-template-columns: 120px 1fr auto;
   gap: 8px;
   align-items: center;
 }
@@ -602,7 +626,7 @@ body { overflow-x: hidden; }
   }
 
   .admin-tile-row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 
   .admin-slot-row {

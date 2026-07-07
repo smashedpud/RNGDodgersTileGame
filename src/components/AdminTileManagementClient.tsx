@@ -608,9 +608,6 @@ export function AdminTileManagementClient({ initialBoard }: Props) {
                   <option key={tile.id} value={tile.id}>{tile.title}</option>
                 ))}
               </select>
-              <span className="admin-slot-label">
-                {tileNameById[activeBoardLayout.slots[String(tileNumber)] ?? ""] ?? "Unassigned"}
-              </span>
               <button
                 type="button"
                 className="roll-save-button user-delete-button"
