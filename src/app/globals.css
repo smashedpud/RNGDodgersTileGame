@@ -276,6 +276,7 @@ body { overflow-x: hidden; }
   font-size: 11px;
   opacity: 0.85;
   z-index: 3;
+  line-height: 1;
 }
 
 .tile-team-markers {
@@ -283,8 +284,12 @@ body { overflow-x: hidden; }
   bottom: 6px;
   right: 6px;
   display: flex;
+  align-items: center;
   gap: 4px;
   z-index: 4;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 40px);
 }
 
 .tile-team-marker {
@@ -430,13 +435,12 @@ body { overflow-x: hidden; }
 }
 
 .leaderboard-team-pill {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
-  border: none;
-  background: transparent;
-  padding: 0;
-  color: inherit;
+  padding: 12px 14px;
+  margin: -12px -14px;
+  width: calc(100% + 28px);
 }
 
 .leaderboard-team-color {

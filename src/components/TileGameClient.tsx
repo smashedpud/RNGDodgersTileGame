@@ -189,11 +189,6 @@ export function TileGameClient({
     state: "idle" | "saving" | "success" | "error";
     message?: string;
   }>({ state: "idle" });
-  const [userDrafts, setUserDrafts] = useState<GameUser[]>([]);
-  const [userSaveStatus, setUserSaveStatus] = useState<{
-    state: "idle" | "saving" | "success" | "error";
-    message?: string;
-  }>({ state: "idle" });
   const [rollEditorPopup, setRollEditorPopup] = useState<{
     sourceIndex: number;
     teamName: string;
@@ -410,10 +405,6 @@ export function TileGameClient({
     });
     setDraftRollsByIndex(nextDrafts);
   }, [remoteData.leaderboard]);
-
-  useEffect(() => {
-    setUserDrafts(remoteData.users);
-  }, [remoteData.users]);
 
   const parseRollsInput = (rawValue: string) => {
     const trimmed = rawValue.trim();
@@ -643,108 +634,6 @@ export function TileGameClient({
       const message = error instanceof Error ? error.message : "Failed to save rolls";
       setSaveStatus({ state: "error", message });
     }
-  };
-
-  const saveUsers = async () => {
-    if (!isAdmin) {
-      return;
-    }
-
-    const teamByMemberName = new Map<string, string>();
-    remoteData.leaderboard.forEach((entry) => {
-      const members = Array.isArray(entry["team members"]) ? entry["team members"] : [];
-      const teamName = members.map((member) => String(member).trim()).filter(Boolean).join(" / ");
-      members.forEach((member) => {
-        const key = String(member).trim().toLowerCase();
-        if (key && teamName && !teamByMemberName.has(key)) {
-          teamByMemberName.set(key, teamName);
-        }
-      });
-    });
-
-    const normalizedUsers = userDrafts.map((user) => {
-      const displayName = user.displayName.trim();
-      const discordId = user.discordId.trim();
-      const existingTeam = user.team.trim();
-      const inferredTeam = teamByMemberName.get(displayName.toLowerCase()) ?? existingTeam;
-
-      return {
-        displayName,
-        discordId,
-        team: inferredTeam,
-      };
-    });
-
-    const hasInvalid = normalizedUsers.some(
-      (user) => !user.displayName || !user.team,
-    );
-
-    if (hasInvalid) {
-      setUserSaveStatus({
-        state: "error",
-        message: "Each user needs display name and team.",
-      });
-      return;
-    }
-
-    const nonEmptyIds = normalizedUsers
-      .map((user) => user.discordId)
-      .filter((discordId) => discordId.length > 0);
-    const idSet = new Set(nonEmptyIds);
-    if (idSet.size !== nonEmptyIds.length) {
-      setUserSaveStatus({
-        state: "error",
-        message: "Discord IDs must be unique when provided.",
-      });
-      return;
-    }
-
-    setUserSaveStatus({ state: "saving", message: "Saving users..." });
-
-    try {
-      const response = await fetch("/api/users", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ users: normalizedUsers }),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "Failed to save users");
-      }
-
-      setRemoteData((current) => ({
-        ...current,
-        users: normalizedUsers,
-      }));
-      setUserSaveStatus({ state: "success", message: "Users updated." });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to save users";
-      setUserSaveStatus({ state: "error", message });
-    }
-  };
-
-  const updateUserDraft = (index: number, field: keyof GameUser, value: string) => {
-    setUserDrafts((current) =>
-      current.map((user, currentIndex) =>
-        currentIndex === index
-          ? {
-              ...user,
-              [field]: value,
-            }
-          : user,
-      ),
-    );
-  };
-
-  const removeUserDraft = (index: number) => {
-    setUserDrafts((current) => current.filter((_, currentIndex) => currentIndex !== index));
-  };
-
-  const addUserDraft = () => {
-    setUserDrafts((current) => [...current, { displayName: "", discordId: "", team: "" }]);
   };
 
   const teamsByCurrentTile = useMemo(() => {
@@ -1031,9 +920,14 @@ export function TileGameClient({
               Leaderboard
             </button>
             {isAdmin ? (
-              <Link className="board-button" href={`/admin/tiles?board=${activeBoard === "board2" ? "board2" : "board1"}`}>
-                Edit Tiles & Boards
-              </Link>
+              <>
+                <Link className="board-button" href={`/admin/tiles?board=${activeBoard === "board2" ? "board2" : "board1"}`}>
+                  Edit Tiles & Boards
+                </Link>
+                <Link className="board-button" href="/admin/users">
+                  Manage Users
+                </Link>
+              </>
             ) : null}
           </div>
           {!isLeaderboardView ? (
@@ -1199,7 +1093,7 @@ export function TileGameClient({
             <tbody>
               {showRollsColumn && saveStatus.state !== "idle" ? (
                 <tr>
-                  <td colSpan={showCurrentBoardColumn ? 5 : 4}>
+                  <td colSpan={3 + (showCurrentBoardColumn ? 1 : 0) + (showRollsColumn ? 1 : 0)}>
                     <div
                       className={`roll-save-status ${saveStatus.state === "error" ? "error" : "success"}`}
                     >
@@ -1210,12 +1104,14 @@ export function TileGameClient({
               ) : null}
               {leaderboardTeams.map((team, index) => (
                 <tr key={`${team["team members"].join("-")}-${index}`}>
-                  <td className="leaderboard-team-pill">
-                    <span
-                      className="leaderboard-team-color"
-                      style={{ backgroundColor: team.color || "#6b7280" }}
-                    />
-                    {team["team members"].join(", ")}
+                  <td>
+                    <div className="leaderboard-team-pill">
+                      <span
+                        className="leaderboard-team-color"
+                        style={{ backgroundColor: team.color || "#6b7280" }}
+                      />
+                      {team["team members"].join(", ")}
+                    </div>
                   </td>
                   {showCurrentBoardColumn ? (
                     <td>{boardLabelLookup[team.board as BoardId] ?? team.board}</td>
@@ -1286,81 +1182,6 @@ export function TileGameClient({
             </tbody>
           </table>
         </div>
-        {isAdmin ? (
-          <div className="leaderboard-card user-admin-card">
-            <div className="user-admin-header">
-              <h2 className="user-admin-title">User Team Mapping</h2>
-              <div className="user-admin-actions">
-                <button type="button" className="roll-save-button" onClick={addUserDraft}>Add User</button>
-                <button
-                  type="button"
-                  className="roll-save-button"
-                  disabled={userSaveStatus.state === "saving"}
-                  onClick={() => {
-                    void saveUsers();
-                  }}
-                >
-                  Save Users
-                </button>
-              </div>
-            </div>
-
-            {userSaveStatus.state !== "idle" ? (
-              <div className={`roll-save-status ${userSaveStatus.state === "error" ? "error" : "success"}`}>
-                {userSaveStatus.message}
-              </div>
-            ) : null}
-
-            <div className="user-admin-table-wrap">
-              <table className="leaderboard-table user-admin-table">
-                <thead>
-                  <tr>
-                    <th>Display Name</th>
-                    <th>Discord ID</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {userDrafts.length === 0 ? (
-                    <tr>
-                      <td colSpan={3}>No users configured yet.</td>
-                    </tr>
-                  ) : (
-                    userDrafts.map((user, index) => (
-                      <tr key={`${user.discordId}-${index}`}>
-                        <td>
-                          <input
-                            type="text"
-                            className="roll-editor-input"
-                            value={user.displayName}
-                            onChange={(event) => updateUserDraft(index, "displayName", event.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            className="roll-editor-input"
-                            value={user.discordId}
-                            onChange={(event) => updateUserDraft(index, "discordId", event.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="roll-save-button user-delete-button"
-                            onClick={() => removeUserDraft(index)}
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : null}
         </>
       ) : (
         <div
