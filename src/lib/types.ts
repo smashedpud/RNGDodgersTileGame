@@ -11,7 +11,14 @@ export type RawLeaderboardEntry = {
   color?: string;
 };
 
+export type GameUser = {
+  displayName: string;
+  discordId: string;
+  team: string;
+};
+
 export type GameDataResponse = {
   boards: Record<BoardId, SquareData>;
   leaderboard: RawLeaderboardEntry[];
+  users: GameUser[];
 };

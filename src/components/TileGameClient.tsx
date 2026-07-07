@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { DEFAULT_GAME_DATA } from "@/lib/defaultData";
-import type { BoardId, RawLeaderboardEntry, SquareData } from "@/lib/types";
+import type { BoardId, GameUser, RawLeaderboardEntry, SquareData } from "@/lib/types";
 
 type Props = {
   total?: number;
@@ -158,6 +158,7 @@ export function TileGameClient({
   squareHeight = 80,
 }: Props) {
   const { data: session, status } = useSession();
+  const localOverrideEnabled = process.env.NEXT_PUBLIC_LOCAL_AUTH_OVERRIDE === "true";
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [effectiveColumns, setEffectiveColumns] = useState(columns);
   const [squareData, setSquareData] = useState<Record<number, unknown>>({});
@@ -183,6 +184,11 @@ export function TileGameClient({
   const [remoteData, setRemoteData] = useState(DEFAULT_GAME_DATA);
   const [draftRollsByIndex, setDraftRollsByIndex] = useState<Record<number, string>>({});
   const [saveStatus, setSaveStatus] = useState<{
+    state: "idle" | "saving" | "success" | "error";
+    message?: string;
+  }>({ state: "idle" });
+  const [userDrafts, setUserDrafts] = useState<GameUser[]>([]);
+  const [userSaveStatus, setUserSaveStatus] = useState<{
     state: "idle" | "saving" | "success" | "error";
     message?: string;
   }>({ state: "idle" });
@@ -393,6 +399,10 @@ export function TileGameClient({
     setDraftRollsByIndex(nextDrafts);
   }, [remoteData.leaderboard]);
 
+  useEffect(() => {
+    setUserDrafts(remoteData.users);
+  }, [remoteData.users]);
+
   const parseRollsInput = (rawValue: string) => {
     const trimmed = rawValue.trim();
     if (!trimmed) {
@@ -460,6 +470,89 @@ export function TileGameClient({
       const message = error instanceof Error ? error.message : "Failed to save rolls";
       setSaveStatus({ state: "error", message });
     }
+  };
+
+  const saveUsers = async () => {
+    if (!isAdmin) {
+      return;
+    }
+
+    const normalizedUsers = userDrafts.map((user) => ({
+      displayName: user.displayName.trim(),
+      discordId: user.discordId.trim(),
+      team: user.team.trim(),
+    }));
+
+    const hasInvalid = normalizedUsers.some(
+      (user) => !user.displayName || !user.team,
+    );
+
+    if (hasInvalid) {
+      setUserSaveStatus({
+        state: "error",
+        message: "Each user needs display name and team.",
+      });
+      return;
+    }
+
+    const nonEmptyIds = normalizedUsers
+      .map((user) => user.discordId)
+      .filter((discordId) => discordId.length > 0);
+    const idSet = new Set(nonEmptyIds);
+    if (idSet.size !== nonEmptyIds.length) {
+      setUserSaveStatus({
+        state: "error",
+        message: "Discord IDs must be unique when provided.",
+      });
+      return;
+    }
+
+    setUserSaveStatus({ state: "saving", message: "Saving users..." });
+
+    try {
+      const response = await fetch("/api/users", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ users: normalizedUsers }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Failed to save users");
+      }
+
+      setRemoteData((current) => ({
+        ...current,
+        users: normalizedUsers,
+      }));
+      setUserSaveStatus({ state: "success", message: "Users updated." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save users";
+      setUserSaveStatus({ state: "error", message });
+    }
+  };
+
+  const updateUserDraft = (index: number, field: keyof GameUser, value: string) => {
+    setUserDrafts((current) =>
+      current.map((user, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...user,
+              [field]: value,
+            }
+          : user,
+      ),
+    );
+  };
+
+  const removeUserDraft = (index: number) => {
+    setUserDrafts((current) => current.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  const addUserDraft = () => {
+    setUserDrafts((current) => [...current, { displayName: "", discordId: "", team: "" }]);
   };
 
   const teamsByCurrentTile = useMemo(() => {
@@ -688,13 +781,32 @@ export function TileGameClient({
                 </button>
               </>
             ) : (
-              <button
-                type="button"
-                className="board-button"
-                onClick={() => signIn("discord")}
-              >
-                Sign in with Discord
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="board-button"
+                  onClick={() => signIn("discord")}
+                >
+                  Sign in with Discord
+                </button>
+                {localOverrideEnabled ? (
+                  <button
+                    type="button"
+                    className="board-button"
+                    onClick={() =>
+                      signIn("local-override", {
+                        discordId:
+                          process.env.NEXT_PUBLIC_LOCAL_AUTH_OVERRIDE_DISCORD_ID ?? "local-admin",
+                        displayName:
+                          process.env.NEXT_PUBLIC_LOCAL_AUTH_OVERRIDE_NAME ?? "Local Admin",
+                        callbackUrl: "/",
+                      })
+                    }
+                  >
+                    Local Admin Login
+                  </button>
+                ) : null}
+              </>
             )}
           </div>
           <div className="board-menu">
@@ -765,6 +877,7 @@ export function TileGameClient({
       ) : null}
 
       {isLeaderboardView ? (
+        <>
         <div className="leaderboard-card">
           <table className="leaderboard-table">
             <thead>
@@ -773,7 +886,7 @@ export function TileGameClient({
                 {showCurrentBoardColumn ? <th>Current Board</th> : null}
                 <th>Current Tile</th>
                 <th>Total Tiles Completed</th>
-                <th>Rolls</th>
+                {isAdmin ? <th>Rolls</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -846,8 +959,8 @@ export function TileGameClient({
                       {team["tiles completed"].length}
                     </button>
                   </td>
-                  <td>
-                    {isAdmin ? (
+                  {isAdmin ? (
+                    <td>
                       <div className="roll-editor">
                         <input
                           type="text"
@@ -872,17 +985,98 @@ export function TileGameClient({
                           Save
                         </button>
                       </div>
-                    ) : (
-                      <span>
-                        {Array.isArray(team.originalEntry.rolls) ? team.originalEntry.rolls.join(", ") : "-"}
-                      </span>
-                    )}
-                  </td>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {isAdmin ? (
+          <div className="leaderboard-card user-admin-card">
+            <div className="user-admin-header">
+              <h2 className="user-admin-title">User Team Mapping</h2>
+              <div className="user-admin-actions">
+                <button type="button" className="roll-save-button" onClick={addUserDraft}>Add User</button>
+                <button
+                  type="button"
+                  className="roll-save-button"
+                  disabled={userSaveStatus.state === "saving"}
+                  onClick={() => {
+                    void saveUsers();
+                  }}
+                >
+                  Save Users
+                </button>
+              </div>
+            </div>
+
+            {userSaveStatus.state !== "idle" ? (
+              <div className={`roll-save-status ${userSaveStatus.state === "error" ? "error" : "success"}`}>
+                {userSaveStatus.message}
+              </div>
+            ) : null}
+
+            <div className="user-admin-table-wrap">
+              <table className="leaderboard-table user-admin-table">
+                <thead>
+                  <tr>
+                    <th>Display Name</th>
+                    <th>Discord ID</th>
+                    <th>Team</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userDrafts.length === 0 ? (
+                    <tr>
+                      <td colSpan={4}>No users configured yet.</td>
+                    </tr>
+                  ) : (
+                    userDrafts.map((user, index) => (
+                      <tr key={`${user.discordId}-${index}`}>
+                        <td>
+                          <input
+                            type="text"
+                            className="roll-editor-input"
+                            value={user.displayName}
+                            onChange={(event) => updateUserDraft(index, "displayName", event.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            className="roll-editor-input"
+                            value={user.discordId}
+                            onChange={(event) => updateUserDraft(index, "discordId", event.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            className="roll-editor-input"
+                            value={user.team}
+                            onChange={(event) => updateUserDraft(index, "team", event.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="roll-save-button user-delete-button"
+                            onClick={() => removeUserDraft(index)}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+        </>
       ) : (
         <div
           ref={gridRef}

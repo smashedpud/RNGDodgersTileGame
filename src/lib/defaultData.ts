@@ -13,4 +13,5 @@ export const DEFAULT_LEADERBOARD = leaderboardJson as RawLeaderboardEntry[];
 export const DEFAULT_GAME_DATA: GameDataResponse = {
   boards: DEFAULT_BOARDS,
   leaderboard: DEFAULT_LEADERBOARD,
+  users: [],
 };

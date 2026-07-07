@@ -50,6 +50,21 @@ If Mongo is not configured locally, bootstrap is skipped in non-production mode 
 
 Open `http://localhost:3000`.
 
+### Local Auth Override (No Discord)
+
+If Discord OAuth is unavailable locally, you can enable a local admin login button:
+
+```bash
+LOCAL_AUTH_OVERRIDE=true
+NEXT_PUBLIC_LOCAL_AUTH_OVERRIDE=true
+LOCAL_AUTH_OVERRIDE_DISCORD_ID=local-admin
+LOCAL_AUTH_OVERRIDE_NAME=Local Admin
+NEXT_PUBLIC_LOCAL_AUTH_OVERRIDE_DISCORD_ID=local-admin
+NEXT_PUBLIC_LOCAL_AUTH_OVERRIDE_NAME=Local Admin
+```
+
+This is only active outside production.
+
 ## API Endpoints
 
 - `GET /api/game-data`

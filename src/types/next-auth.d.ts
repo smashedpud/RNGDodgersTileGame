@@ -17,5 +17,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     discordId?: string;
     permission?: UserPermission;
+    authProvider?: "discord" | "local-override";
   }
 }
