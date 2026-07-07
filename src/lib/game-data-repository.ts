@@ -195,10 +195,15 @@ async function ensureSeeded() {
       if (seedUsers.length > 0) {
         const now = new Date();
         await usersCollection.insertMany(
-          seedUsers.map((user) => ({
-            ...user,
-            updatedAt: now,
-          })),
+          seedUsers.map((user) => {
+            const discordId = user.discordId.trim();
+            return {
+              displayName: user.displayName,
+              team: user.team,
+              ...(discordId ? { discordId } : {}),
+              updatedAt: now,
+            };
+          }),
         );
       }
     }
