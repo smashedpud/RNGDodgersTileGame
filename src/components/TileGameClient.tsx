@@ -624,6 +624,7 @@ export function TileGameClient({
   );
   const canEditOwnTeamRolls = !isAdmin && Boolean(currentUserTeam);
   const showRollsColumn = isAdmin || canEditOwnTeamRolls;
+  const roleLabel = isAdmin ? "admin" : canEditOwnTeamRolls ? "team-member" : permission;
 
   const showCurrentBoardColumn = leaderboardTeams.some((team) => team.board !== BOARDS[0]?.id);
   const canDecreaseGrid = gridScale > MIN_GRID_SCALE;
@@ -820,7 +821,7 @@ export function TileGameClient({
             {status === "authenticated" ? (
               <>
                 <span className="auth-badge">
-                  Signed in as {sessionLabel} ({permission})
+                  Signed in as {sessionLabel} ({roleLabel})
                 </span>
                 <button
                   type="button"

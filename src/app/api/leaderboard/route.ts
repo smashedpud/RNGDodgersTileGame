@@ -22,10 +22,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    if (!canEditTeamRolls(permission)) {
-      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
-    }
-
     const body = (await request.json()) as { entries?: RawLeaderboardEntry[] } & TeamRollsPayload;
     const entries = Array.isArray(body.entries) ? body.entries : null;
 
