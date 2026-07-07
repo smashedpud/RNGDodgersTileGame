@@ -38,6 +38,9 @@ cp .env.example .env.local
 bun run dev
 ```
 
+`bun run dev` and `bun run start` now run a Mongo bootstrap step first to ensure collections are seeded before the app serves traffic.
+If Mongo is not configured locally, bootstrap is skipped in non-production mode so you can still run the app with JSON fallback data.
+
 Open `http://localhost:3000`.
 
 ## API Endpoints
@@ -87,3 +90,5 @@ bun run start
 
 - Existing JSON files are still present as defaults and seed sources.
 - The UI now fetches data from the backend (`/api/game-data`) instead of bundling data only at build time.
+- You can run bootstrap manually with `bun run bootstrap:mongo`.
+- Production bootstrap is strict by default (`NODE_ENV=production`), and can be forced in any environment with `MONGO_BOOTSTRAP_STRICT=true`.

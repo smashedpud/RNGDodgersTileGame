@@ -38,6 +38,10 @@ async function ensureSeeded() {
   }
 }
 
+export async function bootstrapGameData() {
+  await ensureSeeded();
+}
+
 export async function getGameData(): Promise<GameDataResponse> {
   await ensureSeeded();
   const db = await getDb();

@@ -8,9 +8,10 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "bunx --bun next dev",
+    "bootstrap:mongo": "bun run scripts/bootstrap-mongo.ts",
+    "dev": "bun run bootstrap:mongo && bunx --bun next dev",
     "build": "bunx --bun next build",
-    "start": "bunx --bun next start",
+    "start": "bun run bootstrap:mongo && bunx --bun next start",
     "lint": "bunx --bun next lint"
   },
   "dependencies": {
