@@ -344,6 +344,10 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
     'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22280%22%20height%3D%22280%22%20viewBox%3D%220%200%20280%20280%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Crect%20width%3D%22280%22%20height%3D%22280%22%20fill%3D%22%234a764a%22/%3E%3Ctext%20x%3D%22140%22%20y%3D%22150%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2220%22%20fill%3D%22%23fff%22%3EImage%3C/text%3E%3C/svg%3E';
 
   useEffect(() => {
+    if (isLeaderboardView) {
+      return;
+    }
+
     let el = gridRef.current;
     if (!el) {
       el = document.querySelector('.grid') as HTMLDivElement | null;
@@ -597,6 +601,7 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
             <thead>
               <tr>
                 <th>Team</th>
+                {showCurrentBoardColumn ? <th>Current Board</th> : null}
                 <th>Current Tile</th>
                 <th>Total Tiles Completed</th>
               </tr>
@@ -611,7 +616,19 @@ export function App({ total = 14, columns = 6, minSquare = 70, gap = 10, squareW
                       />
                       {team["team members"].join(", ")}
                   </td>
-                  <td>{team["current tile"]}</td>
+                  {showCurrentBoardColumn ? <td>{boardLabelLookup[team.board] ?? team.board}</td> : null}
+                  <td>
+                    <button
+                      type="button"
+                      className="leaderboard-tile-count"
+                      onMouseEnter={(event) => showPopup(event, "tiles", getCurrentTileTitle(team["current tile"]), team.color)}
+                      onMouseMove={(event) => setHoverPosition({ x: event.clientX, y: event.clientY })}
+                      onMouseLeave={clearPopup}
+                      onClick={(event) => showPopup(event, "tiles", getCurrentTileTitle(team["current tile"]), team.color)}
+                    >
+                      {team["current tile"]}
+                    </button>
+                  </td>
                   <td>
                     <button
                       type="button"
