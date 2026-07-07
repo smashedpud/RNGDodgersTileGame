@@ -20,9 +20,14 @@ type UserPermissionDocument = {
   updatedAt: Date;
 };
 
-type UserDocument = GameUser & {
+type UserDocument = {
+  displayName: string;
+  team: string;
+  discordId?: string;
   updatedAt: Date;
 };
+
+const getTeamNameFromMembers = (members: string[]) => members.map((member) => member.trim()).join(" / ");
 
 function buildUsersFromLeaderboard(entries: RawLeaderboardEntry[]): GameUser[] {
   const users: GameUser[] = [];
@@ -86,15 +91,10 @@ async function ensureSeeded() {
 
   const usersCollection = db.collection<UserDocument>(USERS_COLLECTION);
   await usersCollection.dropIndex("discordId_1").catch(() => undefined);
-  await usersCollection.createIndex(
-    { discordId: 1 },
-    {
-      unique: true,
-      partialFilterExpression: {
-        discordId: { $type: "string", $ne: "" },
-      },
-    },
-  );
+  // Keep compatibility with Mongo variants that do not support $ne in partial indexes.
+  // We store blank IDs as missing fields and index only present IDs via sparse unique index.
+  await usersCollection.updateMany({ discordId: "" }, { $unset: { discordId: "" } });
+  await usersCollection.createIndex({ discordId: 1 }, { unique: true, sparse: true });
 
   const usersCount = await usersCollection.countDocuments();
   if (usersCount === 0) {
@@ -170,7 +170,11 @@ export async function getGameData(): Promise<GameDataResponse> {
   return {
     boards,
     leaderboard,
-    users,
+    users: users.map((user) => ({
+      displayName: user.displayName,
+      discordId: user.discordId ?? "",
+      team: user.team,
+    })),
   };
 }
 
@@ -201,11 +205,70 @@ export async function getUsers(): Promise<GameUser[]> {
   await ensureSeeded();
   const db = await getDb();
 
-  return db
+  const users = await db
     .collection<UserDocument>(USERS_COLLECTION)
     .find({}, { projection: { _id: 0, displayName: 1, discordId: 1, team: 1 } })
     .sort({ displayName: 1 })
     .toArray();
+
+  return users.map((user) => ({
+    displayName: user.displayName,
+    discordId: user.discordId ?? "",
+    team: user.team,
+  }));
+}
+
+export async function getUserByDiscordId(discordId: string): Promise<GameUser | null> {
+  await ensureSeeded();
+  const db = await getDb();
+
+  const user = await db
+    .collection<UserDocument>(USERS_COLLECTION)
+    .findOne(
+      { discordId },
+      { projection: { _id: 0, displayName: 1, discordId: 1, team: 1 } },
+    );
+
+  if (!user) {
+    return null;
+  }
+
+  return {
+    displayName: user.displayName,
+    discordId: user.discordId ?? "",
+    team: user.team,
+  };
+}
+
+export async function updateTeamRolls(teamName: string, rolls: number[]): Promise<boolean> {
+  const db = await getDb();
+  const collection = db.collection<RawLeaderboardEntry>(LEADERBOARD_COLLECTION);
+  const entries = await collection.find({}).toArray();
+
+  const nextEntries = entries.map((entry) => {
+    const members = Array.isArray(entry["team members"]) ? entry["team members"] : [];
+    const normalizedTeamName = getTeamNameFromMembers(members);
+    if (normalizedTeamName !== teamName) {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      rolls,
+    };
+  });
+
+  const changed = nextEntries.some((entry, index) => entry !== entries[index]);
+  if (!changed) {
+    return false;
+  }
+
+  await collection.deleteMany({});
+  if (nextEntries.length > 0) {
+    await collection.insertMany(nextEntries);
+  }
+
+  return true;
 }
 
 export async function replaceUsers(users: GameUser[]) {
@@ -220,9 +283,14 @@ export async function replaceUsers(users: GameUser[]) {
 
   const now = new Date();
   await collection.insertMany(
-    users.map((user) => ({
-      ...user,
-      updatedAt: now,
-    })),
+    users.map((user) => {
+      const discordId = user.discordId.trim();
+      return {
+        displayName: user.displayName,
+        team: user.team,
+        ...(discordId ? { discordId } : {}),
+        updatedAt: now,
+      };
+    }),
   );
 }

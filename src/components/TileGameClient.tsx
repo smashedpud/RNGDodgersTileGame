@@ -46,6 +46,7 @@ type LeaderboardEntry = {
 type RankedLeaderboardEntry = LeaderboardEntry & {
   sourceIndex: number;
   originalEntry: RawLeaderboardEntry;
+  teamName: string;
 };
 
 type BoardBounds = {
@@ -384,6 +385,9 @@ export function TileGameClient({
       ...normalizeLeaderboardEntry(entry),
       sourceIndex,
       originalEntry: entry,
+      teamName: Array.isArray(entry["team members"])
+        ? entry["team members"].map((member) => String(member).trim()).join(" / ")
+        : "",
     }))
     .sort(
       (a, b) =>
@@ -421,7 +425,13 @@ export function TileGameClient({
   };
 
   const saveTeamRolls = async (sourceIndex: number) => {
-    if (permission !== "admin") {
+    const rankedEntry = leaderboardTeams.find((entry) => entry.sourceIndex === sourceIndex);
+    if (!rankedEntry) {
+      return;
+    }
+
+    const canEditThisTeam = isAdmin || (currentUserTeam != null && rankedEntry.teamName === currentUserTeam);
+    if (!canEditThisTeam) {
       return;
     }
 
@@ -448,13 +458,24 @@ export function TileGameClient({
     setSaveStatus({ state: "saving", message: "Saving rolls..." });
 
     try {
-      const response = await fetch("/api/leaderboard", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ entries: nextEntries }),
-      });
+      const response = await fetch(
+        "/api/leaderboard",
+        isAdmin
+          ? {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ entries: nextEntries }),
+            }
+          : {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ team: rankedEntry.teamName, rolls: parsed }),
+            },
+      );
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -574,6 +595,16 @@ export function TileGameClient({
   const permission = session?.user?.permission ?? "viewer";
   const sessionLabel = session?.user?.name ?? session?.user?.discordId ?? "Guest";
   const isAdmin = permission === "admin";
+  const currentUserDiscordId = session?.user?.discordId;
+  const currentUserTeam = useMemo(
+    () =>
+      currentUserDiscordId
+        ? remoteData.users.find((user) => user.discordId === currentUserDiscordId)?.team
+        : undefined,
+    [currentUserDiscordId, remoteData.users],
+  );
+  const canEditOwnTeamRolls = !isAdmin && Boolean(currentUserTeam);
+  const showRollsColumn = isAdmin || canEditOwnTeamRolls;
 
   const showCurrentBoardColumn = leaderboardTeams.some((team) => team.board !== BOARDS[0]?.id);
   const canDecreaseGrid = gridScale > MIN_GRID_SCALE;
@@ -886,11 +917,11 @@ export function TileGameClient({
                 {showCurrentBoardColumn ? <th>Current Board</th> : null}
                 <th>Current Tile</th>
                 <th>Total Tiles Completed</th>
-                {isAdmin ? <th>Rolls</th> : null}
+                {showRollsColumn ? <th>Rolls</th> : null}
               </tr>
             </thead>
             <tbody>
-              {isAdmin && saveStatus.state !== "idle" ? (
+              {showRollsColumn && saveStatus.state !== "idle" ? (
                 <tr>
                   <td colSpan={showCurrentBoardColumn ? 5 : 4}>
                     <div
@@ -959,32 +990,36 @@ export function TileGameClient({
                       {team["tiles completed"].length}
                     </button>
                   </td>
-                  {isAdmin ? (
+                  {showRollsColumn ? (
                     <td>
-                      <div className="roll-editor">
-                        <input
-                          type="text"
-                          className="roll-editor-input"
-                          value={draftRollsByIndex[team.sourceIndex] ?? ""}
-                          onChange={(event) =>
-                            setDraftRollsByIndex((current) => ({
-                              ...current,
-                              [team.sourceIndex]: event.target.value,
-                            }))
-                          }
-                          aria-label={`Rolls for ${team["team members"].join(", ")}`}
-                        />
-                        <button
-                          type="button"
-                          className="roll-save-button"
-                          disabled={saveStatus.state === "saving"}
-                          onClick={() => {
-                            void saveTeamRolls(team.sourceIndex);
-                          }}
-                        >
-                          Save
-                        </button>
-                      </div>
+                      {isAdmin || team.teamName === currentUserTeam ? (
+                        <div className="roll-editor">
+                          <input
+                            type="text"
+                            className="roll-editor-input"
+                            value={draftRollsByIndex[team.sourceIndex] ?? ""}
+                            onChange={(event) =>
+                              setDraftRollsByIndex((current) => ({
+                                ...current,
+                                [team.sourceIndex]: event.target.value,
+                              }))
+                            }
+                            aria-label={`Rolls for ${team["team members"].join(", ")}`}
+                          />
+                          <button
+                            type="button"
+                            className="roll-save-button"
+                            disabled={saveStatus.state === "saving"}
+                            onClick={() => {
+                              void saveTeamRolls(team.sourceIndex);
+                            }}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      ) : (
+                        <span>-</span>
+                      )}
                     </td>
                   ) : null}
                 </tr>
